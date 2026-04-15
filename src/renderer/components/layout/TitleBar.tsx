@@ -212,7 +212,7 @@ export function TitleBar(): JSX.Element | null {
   const handleShowAbout = useCallback(() => {
     addToast({
       type: 'info',
-      title: '关于 FastAgents',
+      title: '关于 FastTerminal',
       body: '一个面向多项目、多会话和多面板工作流的 Electron 桌面工作台。',
       duration: 9000,
     })
@@ -334,7 +334,7 @@ export function TitleBar(): JSX.Element | null {
           },
           {
             icon: Info,
-            label: '关于 FastAgents',
+            label: '关于 FastTerminal',
             onSelect: handleShowAbout,
           },
           {
@@ -394,7 +394,7 @@ export function TitleBar(): JSX.Element | null {
       >
         <div className="flex items-center gap-1.5 pr-3">
           <Zap size={14} className="text-[var(--color-accent)]" />
-          <span className="text-sm font-semibold text-[var(--color-text-secondary)]">FastAgents</span>
+          <span className="text-sm font-semibold text-[var(--color-text-secondary)]">FastTerminal</span>
         </div>
 
         <div

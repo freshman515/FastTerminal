@@ -1,4 +1,4 @@
-# FastAgents
+# FastTerminal
 
 A lightweight multi-agent terminal manager built with Electron. Run multiple AI coding agents (Claude Code, Codex, OpenCode) and terminals side-by-side, organized by projects and workspaces.
 
@@ -68,8 +68,8 @@ A lightweight multi-agent terminal manager built with Electron. Run multiple AI 
 ### Install
 
 ```bash
-git clone https://github.com/freshman515/FastAgent.git
-cd FastAgent
+git clone https://github.com/freshman515/FastTerminal.git
+cd FastTerminal
 npm install
 ```
 

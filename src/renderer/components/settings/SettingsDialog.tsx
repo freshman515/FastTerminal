@@ -513,7 +513,7 @@ function AppearancePage({ settings, onUpdate }: { settings: AppSettings; onUpdat
   const customThemeNames = useMemo(() => getAllCustomThemeNames(), [settings.customThemes])
   const builtinThemeNames = useMemo(() => allThemeNames.filter((n) => !customThemeNames.includes(n)), [allThemeNames, customThemeNames])
   const displayThemeName = useCallback((name: string): string => (
-    name === 'FastAgents Default' ? 'FastAgents 默认' : name
+    name === 'FastTerminal Default' ? 'FastTerminal 默认' : name
   ), [])
 
   function saveCustomTheme(name: string, theme: GhosttyTheme): void {
@@ -528,7 +528,7 @@ function AppearancePage({ settings, onUpdate }: { settings: AppSettings; onUpdat
     const next = { ...settings.customThemes }
     delete next[name]
     onUpdate('customThemes', next)
-    if (settings.terminalTheme === name) onUpdate('terminalTheme', 'FastAgents Default')
+    if (settings.terminalTheme === name) onUpdate('terminalTheme', 'FastTerminal Default')
   }
 
   function handleImport(): void {
@@ -933,7 +933,7 @@ function EditorPage({ settings, onUpdate }: { settings: AppSettings; onUpdate: (
               </span>
               {'\n'}
               <span style={{ color: '#45c8c8' }}>const</span> path =
-              <span style={{ color: '#3ecf7b' }}> "D:/pragma/MyProject/FastAgents/src/renderer/components/settings/SettingsDialog.tsx"</span>
+              <span style={{ color: '#3ecf7b' }}> "D:/pragma/MyProject/FastTerminal/src/renderer/components/settings/SettingsDialog.tsx"</span>
             </pre>
             {settings.editorMinimap && (
               <div className="flex w-14 shrink-0 items-stretch border-l border-white/5 bg-[#17171b] px-2 py-3">
@@ -1300,7 +1300,7 @@ export function SettingsDialog(): JSX.Element | null {
         {/* Left nav */}
         <div className="flex w-[220px] shrink-0 flex-col border-r border-[var(--color-border)] bg-[linear-gradient(180deg,var(--color-bg-primary),color-mix(in_srgb,var(--color-bg-primary)_80%,var(--color-bg-secondary)))] p-3">
           <div className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-4 py-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">FastAgents</div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--color-text-tertiary)]">FastTerminal</div>
             <h2 className="mt-2 text-[20px] font-semibold tracking-tight text-[var(--color-text-primary)]">设置中心</h2>
             <p className="mt-2 text-[var(--ui-font-xs)] leading-6 text-[var(--color-text-tertiary)]">
               调整界面、终端、编辑器与 AI 的默认行为。

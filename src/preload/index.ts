@@ -393,7 +393,7 @@ const api = {
       const raw = new URLSearchParams(window.location.search).get('sessionIds') ?? ''
       return raw ? raw.split(',') : []
     },
-    getTitle: () => new URLSearchParams(window.location.search).get('title') ?? 'FastAgents',
+    getTitle: () => new URLSearchParams(window.location.search).get('title') ?? 'FastTerminal',
   },
 
   platform: process.platform,

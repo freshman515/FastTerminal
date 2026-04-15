@@ -184,7 +184,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   quickCommands: [...DEFAULT_QUICK_COMMANDS],
   todoItems: [],
   promptItems: [],
-  terminalTheme: 'FastAgents Default',
+  terminalTheme: 'FastTerminal Default',
   customThemes: {},
   aiProvider: 'openai',
   aiBaseUrl: 'https://api.openai.com/v1',

@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// MCP Server bridge for FastAgents IDE integration
-// Claude Code runs this as an MCP server — it queries FastAgents' HTTP IDE server
+// MCP Server bridge for FastTerminal IDE integration
+// Claude Code runs this as an MCP server — it queries FastTerminal's HTTP IDE server
 
 const http = require('http')
 const readline = require('readline')
 
-const PORT = parseInt(process.env.FASTAGENTS_IDE_PORT || '0', 10)
+const PORT = parseInt(process.env.FASTTERMINAL_IDE_PORT || '0', 10)
 if (!PORT) { process.exit(1) }
 
 function fetchState() {
@@ -28,17 +28,17 @@ function send(obj) {
 
 const TOOLS = [
   {
-    name: 'fastagents_get_open_file',
-    description: 'Get the currently open file in FastAgents editor, including its path, language, and cursor position',
+    name: 'fastterminal_get_open_file',
+    description: 'Get the currently open file in FastTerminal editor, including its path, language, and cursor position',
     inputSchema: { type: 'object', properties: {}, required: [] },
   },
   {
-    name: 'fastagents_get_selection',
-    description: 'Get the currently selected text in the FastAgents editor. Returns the selected code/text and the file it belongs to.',
+    name: 'fastterminal_get_selection',
+    description: 'Get the currently selected text in the FastTerminal editor. Returns the selected code/text and the file it belongs to.',
     inputSchema: { type: 'object', properties: {}, required: [] },
   },
   {
-    name: 'fastagents_get_editor_context',
+    name: 'fastterminal_get_editor_context',
     description: 'Get full editor context: open file, selection, cursor position, project path, and language',
     inputSchema: { type: 'object', properties: {}, required: [] },
   },
@@ -70,7 +70,7 @@ async function handleMessage(msg) {
       result: {
         protocolVersion: '2024-11-05',
         capabilities: { tools: {} },
-        serverInfo: { name: 'fastagents-ide', version: '1.0.0' },
+        serverInfo: { name: 'fastterminal-ide', version: '1.0.0' },
       },
     })
   } else if (method === 'notifications/initialized') {
@@ -82,22 +82,22 @@ async function handleMessage(msg) {
     try {
       const state = await fetchState()
       let content
-      if (toolName === 'fastagents_get_open_file') {
+      if (toolName === 'fastterminal_get_open_file') {
         content = state.filePath
           ? `File: ${state.filePath}\nLanguage: ${state.language || 'unknown'}\nCursor: line ${state.cursorLine}, column ${state.cursorColumn}`
           : 'No file is currently open in the editor.'
-      } else if (toolName === 'fastagents_get_selection') {
+      } else if (toolName === 'fastterminal_get_selection') {
         content = state.selection
           ? `File: ${state.filePath || state.fileName || 'unknown file'}\nLanguage: ${state.language || 'unknown'}\nSelection: ${state.selectionRange ? `L${state.selectionRange.start.line + 1}:C${state.selectionRange.start.character + 1} - L${state.selectionRange.end.line + 1}:C${state.selectionRange.end.character + 1}` : 'unknown'}\n\nSelected text:\n\n${state.selection}`
           : 'No text is currently selected in the editor.'
-      } else if (toolName === 'fastagents_get_editor_context') {
+      } else if (toolName === 'fastterminal_get_editor_context') {
         content = JSON.stringify(state, null, 2)
       } else {
         content = `Unknown tool: ${toolName}`
       }
       send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: content }] } })
     } catch (err) {
-      send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: `Error connecting to FastAgents: ${err.message}` }], isError: true } })
+      send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: `Error connecting to FastTerminal: ${err.message}` }], isError: true } })
     }
   } else {
     send({ jsonrpc: '2.0', id, error: { code: -32601, message: `Method not found: ${method}` } })

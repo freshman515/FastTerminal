@@ -120,9 +120,9 @@ export class PtyManager {
       TERM: 'xterm-256color',
       COLORTERM: 'truecolor',
       // Inject session ID so hook scripts can identify this exact session
-      ...(options.sessionId ? { FASTAGENTS_SESSION_ID: options.sessionId } : {}),
+      ...(options.sessionId ? { FASTTERMINAL_SESSION_ID: options.sessionId } : {}),
       // IDE server port for Claude Code MCP integration
-      ...(getIdeServerPort() ? { FASTAGENTS_IDE_PORT: String(getIdeServerPort()) } : {}),
+      ...(getIdeServerPort() ? { FASTTERMINAL_IDE_PORT: String(getIdeServerPort()) } : {}),
       ...(options.env ?? {}),
     }
 

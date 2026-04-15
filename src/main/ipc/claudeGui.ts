@@ -211,7 +211,7 @@ async function fetchClaudeCodeLocalUsage(): Promise<ClaudeCodeLocalUsage> {
 
 function sanitizeCwdForClaudeProjectDir(cwd: string): string {
   // Claude Code replaces all path separators, ':' and '.' with '-'. Matches
-  // folders like D--pragma-MyProject-FastAgents or C--Users-22004.
+  // folders like D--pragma-MyProject-FastTerminal or C--Users-22004.
   return cwd.replace(/[\\/:.]/g, '-')
 }
 
@@ -392,7 +392,7 @@ async function fetchClaudeUsage(): Promise<ClaudeUtilization> {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'User-Agent': 'claude-cli/fastagents',
+        'User-Agent': 'claude-cli/fastterminal',
         Authorization: `Bearer ${accessToken}`,
         'anthropic-beta': OAUTH_BETA_HEADER,
       },

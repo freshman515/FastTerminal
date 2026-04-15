@@ -109,7 +109,7 @@ export function UpdateDialog(): JSX.Element | null {
           {state.kind === 'available' && (
             <>
               <p className="text-[var(--ui-font-sm)] text-[var(--color-text-secondary)]">
-                FastAgents 有新版本可用，是否立即下载并升级？
+                FastTerminal 有新版本可用，是否立即下载并升级？
               </p>
               {state.notes && (
                 <div className="mt-3 max-h-40 overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 py-2 text-[11px] leading-5 text-[var(--color-text-secondary)] whitespace-pre-wrap">

@@ -55,4 +55,4 @@ linux:
 publish:
   - provider: github
     owner: freshman515
-    repo: FastAgent
+    repo: FastTerminal
