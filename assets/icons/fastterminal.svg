@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1e1e24"/>
+      <stop offset="1" stop-color="#12121a"/>
+    </linearGradient>
+    <linearGradient id="prompt" x1="120" y1="180" x2="280" y2="340" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#a78bfa"/>
+      <stop offset="0.55" stop-color="#7c6aef"/>
+      <stop offset="1" stop-color="#5b4cd4"/>
+    </linearGradient>
+    <linearGradient id="cursor" x1="0" y1="0" x2="0" y2="1" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c4b5fd"/>
+      <stop offset="1" stop-color="#8b7cf0"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- Subtle border -->
+  <rect x="1" y="1" width="510" height="510" rx="111" stroke="#7c6aef" stroke-width="1.5" opacity="0.14"/>
+
+  <!-- Traffic-light dots (terminal window hint) -->
+  <circle cx="112" cy="116" r="12" fill="#ff5f57" opacity="0.85"/>
+  <circle cx="150" cy="116" r="12" fill="#febc2e" opacity="0.85"/>
+  <circle cx="188" cy="116" r="12" fill="#28c840" opacity="0.85"/>
+
+  <!-- Prompt arrow ">" -->
+  <path
+    d="M 128 220 L 232 296 L 128 372"
+    stroke="url(#prompt)"
+    stroke-width="36"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+    filter="url(#glow)"
+  />
+
+  <!-- Cursor block "_" -->
+  <rect
+    x="272" y="352"
+    width="128" height="28"
+    rx="8"
+    fill="url(#cursor)"
+    filter="url(#glow)"
+  />
+</svg>

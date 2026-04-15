@@ -1,0 +1,58 @@
+appId: com.fastterminal.app
+productName: FastTerminal
+copyright: Copyright © 2025
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - "out/**/*"
+  - "assets/icons/fastterminal-256.png"
+  - "node_modules/**/*"
+  - "!node_modules/**/README.md"
+  - "!node_modules/**/CHANGELOG.md"
+  - "!node_modules/**/LICENSE*"
+  - "!node_modules/**/*.md"
+  - "!node_modules/**/*.ts"
+  - "!node_modules/**/*.map"
+
+asar: true
+asarUnpack:
+  - "node_modules/@lydell/node-pty/**"
+  - "node_modules/@lydell/node-pty-*/**"
+compression: maximum
+artifactName: "${productName}-Setup-${version}.${ext}"
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.developer-tools
+  icon: build/icon.icns
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: Development
+
+# Auto-updater: pull release metadata + installer from this repo's GitHub
+# Releases. Requires `latest.yml` to be uploaded alongside the .exe when
+# publishing — electron-builder generates it automatically and the release
+# workflow should upload both.
+publish:
+  - provider: github
+    owner: freshman515
+    repo: FastAgent

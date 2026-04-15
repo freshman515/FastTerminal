@@ -1,0 +1,393 @@
+@import 'tailwindcss';
+@import '@xterm/xterm/css/xterm.css';
+
+/* ─── Default theme values (overridable at runtime by JS) ─── */
+:root {
+  --color-titlebar-bg: #111114;
+  --color-terminal-bg: #1a1a1e;
+  --color-bg-primary: #1a1a1e;
+  --color-bg-secondary: #222226;
+  --color-bg-tertiary: #2a2a2e;
+  --color-bg-surface: #323236;
+
+  --color-text-primary: #e8e8ec;
+  --color-text-secondary: #8e8e96;
+  --color-text-tertiary: #5e5e66;
+
+  --color-border: #333338;
+  --color-border-hover: #444449;
+
+  --color-accent: #7c6aef;
+  --color-accent-hover: #8d7ef5;
+  --color-accent-muted: rgba(124, 106, 239, 0.15);
+
+  --color-success: #3ecf7b;
+  --color-warning: #f0a23b;
+  --color-error: #ef5757;
+  --color-info: #5fa0f5;
+}
+
+@theme inline {
+  /* ─── Wire Tailwind to the overridable CSS variables ─── */
+  --color-bg-primary: var(--color-bg-primary);
+  --color-bg-secondary: var(--color-bg-secondary);
+  --color-bg-tertiary: var(--color-bg-tertiary);
+  --color-bg-surface: var(--color-bg-surface);
+
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-tertiary: var(--color-text-tertiary);
+
+  --color-border: var(--color-border);
+  --color-border-hover: var(--color-border-hover);
+
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-muted: var(--color-accent-muted);
+
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-error: var(--color-error);
+  --color-info: var(--color-info);
+
+  /* ─── Typography ─── */
+  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+
+  /* ─── Radius ─── */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-panel: 14px;
+
+  /* ─── Layout gap (space between rounded panels) ─── */
+  --layout-gap: 6px;
+
+  /* ─── Animations ─── */
+  --animate-toast-in: toast-in 0.2s ease-out;
+  --animate-toast-out: toast-out 0.15s ease-in forwards;
+  --animate-fade-in: fade-in 0.15s ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ─── Base Styles ─── */
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: var(--ui-font-family, var(--font-sans));
+  font-size: var(--ui-font-sm, 12px);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* Title bar always stays fixed size regardless of UI font settings */
+.titlebar-fixed {
+  font-size: 13px !important;
+  font-family: var(--font-sans) !important;
+}
+
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-hover);
+}
+
+/* Drag region for custom titlebar */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Hide scrollbar but keep scroll */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* Allow text selection in specific areas */
+.select-text {
+  user-select: text;
+}
+
+/* ─── Modern terminal tab ───
+   Active tab is lifted with a subtle raised background, top accent bar,
+   and soft ambient shadow. Inactive tabs use transparent bg + hairline
+   divider that fades near active/hover for a clean look. */
+
+/* Tab bar base */
+.tab-bar {
+  position: relative;
+}
+
+.tab {
+  position: relative;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    box-shadow 160ms ease;
+}
+
+/* Inactive — subtle card-like tile with bottom border, dimmed icon/text */
+.tab-inactive {
+  background: color-mix(in srgb, var(--color-bg-tertiary) 35%, transparent);
+  color: color-mix(in srgb, var(--color-text-secondary) 78%, transparent);
+  box-shadow: inset 0 -1px 0 0 color-mix(in srgb, var(--color-border) 40%, transparent);
+}
+
+.tab-inactive img,
+.tab-inactive svg {
+  opacity: 0.72;
+  transition: opacity 140ms ease;
+}
+
+.tab-inactive:hover {
+  background: color-mix(in srgb, var(--color-bg-tertiary) 75%, transparent);
+  color: var(--color-text-primary);
+  box-shadow: inset 0 -1px 0 0 color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+.tab-inactive:hover img,
+.tab-inactive:hover svg {
+  opacity: 1;
+}
+
+/* Hairline divider between adjacent inactive tabs */
+.tab-inactive::after {
+  content: '';
+  position: absolute;
+  top: 28%;
+  bottom: 28%;
+  right: -0.5px;
+  width: 1px;
+  background: color-mix(in srgb, var(--color-border) 45%, transparent);
+  pointer-events: none;
+  transition: opacity 140ms ease;
+  z-index: 1;
+}
+
+.tab-active + .tab-inactive::before,
+.tab-inactive:hover::after,
+.tab-inactive:hover + .tab-inactive::after,
+.tab-inactive.tab-before-active::after {
+  opacity: 0;
+}
+
+/* Active — lifted card look with accent bar, seamlessly welded below */
+.tab-active {
+  z-index: 2;
+  color: var(--color-text-primary);
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--color-accent) 10%, var(--color-terminal-bg)) 0%,
+      var(--color-terminal-bg) 40%
+    );
+  /* Extend background 2px below tab-bar bottom so nothing can show through */
+  padding-bottom: 2px;
+  margin-bottom: -2px;
+  box-shadow:
+    inset 0 2px 0 0 transparent,
+    0 -2px 8px -4px color-mix(in srgb, var(--color-accent) 50%, transparent);
+}
+
+.tab-active-focused {
+  box-shadow:
+    inset 0 2px 0 0 var(--color-accent),
+    0 -2px 10px -4px color-mix(in srgb, var(--color-accent) 60%, transparent);
+}
+
+.tab-active-muted {
+  box-shadow:
+    inset 0 2px 0 0 color-mix(in srgb, var(--color-accent) 45%, transparent),
+    0 -1px 6px -4px color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+/* Concave bottom-corner "wings" — welds the active tab to the terminal body */
+.tab-active::before,
+.tab-active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  width: 8px;
+  height: 8px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.tab-active::before {
+  left: -8px;
+  border-bottom-right-radius: 8px;
+  box-shadow: 4px 0 0 0 var(--color-terminal-bg);
+}
+
+.tab-active::after {
+  right: -8px;
+  border-bottom-left-radius: 8px;
+  box-shadow: -4px 0 0 0 var(--color-terminal-bg);
+}
+
+/* ─── AI Summary markdown rendering ─── */
+.ai-summary-content h1, .ai-summary-content h2, .ai-summary-content h3 {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0.5em 0 0.25em;
+}
+.ai-summary-content h1 { font-size: 16px; }
+.ai-summary-content h2 { font-size: 15px; }
+.ai-summary-content h3 { font-size: 14px; }
+.ai-summary-content p { margin: 0.3em 0; }
+.ai-summary-content ul, .ai-summary-content ol {
+  margin: 0.3em 0;
+  padding-left: 1.2em;
+}
+.ai-summary-content li { margin: 0.15em 0; }
+.ai-summary-content li::marker { color: var(--color-accent); }
+.ai-summary-content strong { color: var(--color-text-primary); font-weight: 600; }
+.ai-summary-content code {
+  background: var(--color-bg-surface);
+  color: var(--color-accent);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
+  font-family: var(--font-mono);
+}
+.ai-summary-content pre {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  margin: 0.4em 0;
+  overflow-x: auto;
+}
+.ai-summary-content pre code {
+  background: none;
+  padding: 0;
+  color: var(--color-text-secondary);
+}
+.ai-summary-content .md-token-comment {
+  color: #76839b;
+  font-style: italic;
+}
+.ai-summary-content .md-token-keyword {
+  color: #7aa2f7;
+}
+.ai-summary-content .md-token-string {
+  color: #9ece6a;
+}
+.ai-summary-content .md-token-number {
+  color: #ff9e64;
+}
+.ai-summary-content .md-token-type {
+  color: #e0af68;
+}
+.ai-summary-content .md-token-function {
+  color: #7dcfff;
+}
+.ai-summary-content .md-token-member {
+  color: #c0caf5;
+}
+.ai-summary-content .md-token-tag {
+  color: #7dcfff;
+}
+.ai-summary-content .md-token-attr {
+  color: #bb9af7;
+}
+.ai-summary-content .md-token-variable {
+  color: #f7768e;
+}
+.ai-summary-content .md-token-operator {
+  color: #89ddff;
+}
+.ai-summary-content a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+.ai-summary-content blockquote {
+  border-left: 2px solid var(--color-accent);
+  margin: 0.4em 0;
+  padding-left: 0.8em;
+  color: var(--color-text-tertiary);
+}
+.ai-summary-content table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 0.6em 0;
+  font-size: inherit;
+  line-height: 1.55;
+}
+.ai-summary-content th,
+.ai-summary-content td {
+  border: 1px solid var(--color-border);
+  padding: 6px 10px;
+  vertical-align: top;
+}
+.ai-summary-content th {
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+  font-weight: 600;
+  text-align: left;
+}
+
+/* Focus visible */
+*:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+  border-radius: var(--radius-sm);
+}
+
+.terminal-search-input:focus,
+.terminal-search-input:focus-visible {
+  outline: none;
+}

@@ -1,0 +1,57 @@
+{
+  "name": "fast-terminal",
+  "version": "0.1.0",
+  "description": "Lightweight multi-tab terminal",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "@electron-toolkit/utils": "^4.0.0",
+    "@lydell/node-pty": "1.2.0-beta.12",
+    "@lydell/node-pty-win32-x64": "1.2.0-beta.12",
+    "@xterm/addon-fit": "^0.12.0-beta.141",
+    "@xterm/addon-search": "^0.16.0",
+    "@xterm/addon-serialize": "0.15.0-beta.197",
+    "@xterm/addon-unicode11": "^0.9.0",
+    "@xterm/addon-webgl": "^0.20.0-beta.140",
+    "@xterm/headless": "6.1.0-beta.197",
+    "@xterm/xterm": "^6.1.0-beta.141",
+    "clsx": "^2.1.1",
+    "diff": "^9.0.0",
+    "electron-updater": "^6.8.3",
+    "framer-motion": "^12.23.26",
+    "lucide-react": "^0.562.0",
+    "marked": "^18.0.0",
+    "monaco-editor": "^0.55.1",
+    "pidtree": "^0.6.0",
+    "pidusage": "^4.0.1",
+    "react": "^19.1.4",
+    "react-dom": "^19.1.4",
+    "tailwind-merge": "^3.4.0",
+    "ws": "^8.20.0",
+    "zustand": "^5.0.9"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
+    "@types/diff": "^8.0.0",
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^5.1.2",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.4.0",
+    "electron-vite": "^5.0.0",
+    "sharp": "^0.34.5",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
