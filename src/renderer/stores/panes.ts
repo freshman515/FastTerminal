@@ -20,6 +20,7 @@ export interface PaneSplit {
 export type PaneNode = PaneLeaf | PaneSplit
 
 export type SplitPosition = 'left' | 'right' | 'up' | 'down'
+export type PaneLayoutPreset = 'columns' | 'rows' | 'grid'
 
 interface StoredPaneLayout {
   root: PaneNode
@@ -70,6 +71,8 @@ interface PanesState {
   navigatePane: (direction: 'left' | 'right' | 'up' | 'down') => void
   mergeAllPanes: () => void
   mergePane: (paneId: string) => void
+  applyPaneLayout: (paneId: string, preset: PaneLayoutPreset) => void
+  balanceSplits: () => void
   togglePaneFullscreen: (paneId?: string) => void
   exitPaneFullscreen: () => void
 }
@@ -120,6 +123,88 @@ function getFirstLeafId(node: PaneNode): string {
 function getLastLeafId(node: PaneNode): string {
   if (node.type === 'leaf') return node.id
   return getLastLeafId(node.second)
+}
+
+function splitIntoGroups<T>(items: T[], groupCount: number): T[][] {
+  const count = Math.max(1, Math.min(groupCount, items.length))
+  const groups = Array.from({ length: count }, () => [] as T[])
+
+  for (const [index, item] of items.entries()) {
+    const target = Math.floor(index * count / items.length)
+    groups[target].push(item)
+  }
+
+  return groups.filter((group) => group.length > 0)
+}
+
+function buildPresetNode(paneId: string, preset: PaneLayoutPreset, groupCount: number): {
+  node: PaneNode
+  paneIds: string[]
+} {
+  const paneIds = Array.from({ length: groupCount }, (_, index) =>
+    index === 0 ? paneId : `pane-${generateId()}`,
+  )
+  const leaves = paneIds.map((id): PaneLeaf => ({ type: 'leaf', id }))
+
+  if (preset === 'rows') {
+    return {
+      paneIds,
+      node: {
+        type: 'split',
+        id: `split-${generateId()}`,
+        direction: 'vertical',
+        ratio: 0.5,
+        first: leaves[0],
+        second: leaves[1],
+      },
+    }
+  }
+
+  if (preset === 'columns' || groupCount === 2) {
+    return {
+      paneIds,
+      node: {
+        type: 'split',
+        id: `split-${generateId()}`,
+        direction: 'horizontal',
+        ratio: 0.5,
+        first: leaves[0],
+        second: leaves[1],
+      },
+    }
+  }
+
+  const top: PaneNode = {
+    type: 'split',
+    id: `split-${generateId()}`,
+    direction: 'horizontal',
+    ratio: 0.5,
+    first: leaves[0],
+    second: leaves[1],
+  }
+
+  const bottom: PaneNode = groupCount >= 4
+    ? {
+      type: 'split',
+      id: `split-${generateId()}`,
+      direction: 'horizontal',
+      ratio: 0.5,
+      first: leaves[2],
+      second: leaves[3],
+    }
+    : leaves[2]
+
+  return {
+    paneIds,
+    node: {
+      type: 'split',
+      id: `split-${generateId()}`,
+      direction: 'vertical',
+      ratio: 0.5,
+      first: top,
+      second: bottom,
+    },
+  }
 }
 
 function hasLeaf(node: PaneNode, paneId: string): boolean {
@@ -773,6 +858,68 @@ export const usePanesStore = create<PanesState>((set, get) => ({
     })
     get().closePane(paneId)
   },
+
+  applyPaneLayout: (paneId, preset) => {
+    const state = get()
+    const node = findNode(state.root, paneId)
+    if (!node || node.type !== 'leaf') return
+
+    const sessions = state.paneSessions[paneId] ?? []
+    if (sessions.length < 2) return
+
+    const groupCount = preset === 'grid'
+      ? Math.min(4, sessions.length)
+      : 2
+    const groups = splitIntoGroups(sessions, groupCount)
+    if (groups.length < 2) return
+
+    const { node: presetNode, paneIds } = buildPresetNode(paneId, preset, groups.length)
+    const nextRoot = replaceNode(state.root, paneId, presetNode)
+    const previousRecent = state.paneRecentSessions[paneId] ?? []
+    const previousActive = state.paneActiveSession[paneId] ?? sessions[0] ?? null
+
+    const nextPaneSessions = { ...state.paneSessions }
+    const nextPaneActiveSession = { ...state.paneActiveSession }
+    const nextPaneRecentSessions = { ...state.paneRecentSessions }
+    let nextActivePaneId = paneIds[0]
+
+    for (const [index, group] of groups.entries()) {
+      const groupPaneId = paneIds[index]
+      const groupActive = group.includes(previousActive ?? '') ? previousActive : group[0]
+      nextPaneSessions[groupPaneId] = group
+      nextPaneActiveSession[groupPaneId] = groupActive
+      nextPaneRecentSessions[groupPaneId] = buildPaneRecentSessions(group, groupActive, previousRecent)
+      if (group.includes(previousActive ?? '')) {
+        nextActivePaneId = groupPaneId
+      }
+    }
+
+    set({
+      root: nextRoot,
+      activePaneId: nextActivePaneId,
+      fullscreenPaneId: state.fullscreenPaneId === paneId ? null : state.fullscreenPaneId,
+      paneSessions: nextPaneSessions,
+      paneActiveSession: nextPaneActiveSession,
+      paneRecentSessions: nextPaneRecentSessions,
+    })
+  },
+
+  balanceSplits: () =>
+    set((state) => {
+      if (state.root.type !== 'split') return state
+
+      const balance = (node: PaneNode): PaneNode => {
+        if (node.type === 'leaf') return node
+        return {
+          ...node,
+          ratio: 0.5,
+          first: balance(node.first),
+          second: balance(node.second),
+        }
+      }
+
+      return { root: balance(state.root) }
+    }),
 
   togglePaneFullscreen: (paneId) => {
     const state = get()

@@ -7,6 +7,7 @@ import { AgentOrchestratorPanel } from '@/components/rightpanel/AgentOrchestrato
 export function MainPanel(): JSX.Element {
   const sessions = useSessionsStore((s) => s.sessions)
   const activeTabId = usePanesStore((s) => s.paneActiveSession[s.activePaneId] ?? null)
+  const fullscreenPaneId = usePanesStore((s) => s.fullscreenPaneId)
 
   const activeSession = sessions.find((s) => s.id === activeTabId)
   useEffect(() => {
@@ -18,7 +19,7 @@ export function MainPanel(): JSX.Element {
       <div className="min-w-0 flex-1">
         <SplitContainer />
       </div>
-      <AgentOrchestratorPanel />
+      {!fullscreenPaneId && <AgentOrchestratorPanel />}
     </div>
   )
 }

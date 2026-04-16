@@ -170,6 +170,7 @@ export function SessionTab({
             sourcePaneId: paneId,
             sourceWindowId: currentWindowId,
           })
+          document.body.classList.add('session-tab-dragging')
           onDragStart(session.id, e)
         }}
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(session.id, e) }}
@@ -177,6 +178,7 @@ export function SessionTab({
         onDrop={() => onDrop(session.id)}
         onDragEnd={(e) => {
           onDragEnd()
+          document.body.classList.remove('session-tab-dragging')
           const dragToken = dragTokenRef.current
           dragTokenRef.current = null
           const dragResult = dragToken ? window.api.detach.finishTabDrag(dragToken) : null

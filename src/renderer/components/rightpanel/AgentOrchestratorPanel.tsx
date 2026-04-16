@@ -450,7 +450,6 @@ export function AgentOrchestratorPanel(): JSX.Element {
         title="Open agent orchestrator"
       >
         <ChevronLeft size={13} />
-        <Bot size={14} />
       </button>
     )
   }

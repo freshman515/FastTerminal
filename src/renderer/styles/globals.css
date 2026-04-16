@@ -147,6 +147,10 @@ html, body, #root {
   -webkit-app-region: no-drag;
 }
 
+body.session-tab-dragging .tab-strip-drop-zone {
+  -webkit-app-region: no-drag;
+}
+
 /* Hide scrollbar but keep scroll */
 .scrollbar-none::-webkit-scrollbar {
   display: none;

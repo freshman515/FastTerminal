@@ -200,12 +200,6 @@ export function App(): JSX.Element {
   const fullscreenPaneId = usePanesStore((s) => s.fullscreenPaneId)
   const windowFullscreen = useUIStore((s) => s.windowFullscreen)
 
-  useEffect(() => {
-    if (!windowFullscreen && fullscreenPaneId) {
-      usePanesStore.getState().exitPaneFullscreen()
-    }
-  }, [fullscreenPaneId, windowFullscreen])
-
   if (!ready) {
     return (
       <div className="flex h-full items-center justify-center bg-[var(--color-bg-primary)]">
