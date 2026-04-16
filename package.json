@@ -1,6 +1,6 @@
 {
   "name": "fast-terminal",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Lightweight multi-tab terminal",
   "main": "./out/main/index.js",
   "type": "module",
