@@ -3,6 +3,8 @@ import { switchProjectContext } from '@/lib/project-context'
 import { useSessionsStore } from '@/stores/sessions'
 import { useProjectsStore } from '@/stores/projects'
 import { useUIStore } from '@/stores/ui'
+import { updateAgentStatus } from '@/components/rightpanel/agentRuntime'
+import { addTimelineEvent } from '@/components/rightpanel/SessionTimeline'
 
 const POLL_INTERVAL = 2000
 const IDLE_THRESHOLD = 2
@@ -33,6 +35,8 @@ export function useActivityMonitor(): void {
               const isViewing = activeSessionId === session.id
               setOutputState(session.id, isViewing ? 'idle' : 'unread')
               updateStatus(session.id, 'idle')
+              updateAgentStatus(session.id, 'idle')
+              addTimelineEvent(session.id, 'idle', 'Session became idle')
 
               if (!isViewing && useUIStore.getState().settings.notificationToastEnabled) {
                 const project = useProjectsStore
@@ -88,6 +92,8 @@ export function useActivityMonitor(): void {
       const { sessions, activeSessionId } = useSessionsStore.getState()
       const session = sessions.find((s) => s.ptyId === event.ptyId)
       if (!session) return
+      updateAgentStatus(session.id, 'stopped')
+      addTimelineEvent(session.id, event.exitCode === 0 ? 'stop' : 'error', `Exited with code ${event.exitCode}`)
 
       const isViewing = activeSessionId === session.id
       if (!isViewing && useUIStore.getState().settings.notificationToastEnabled) {

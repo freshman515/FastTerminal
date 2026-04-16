@@ -7,10 +7,8 @@ import { BrowserWindow } from 'electron'
 import { IPC } from '@shared/types'
 import type { SessionCreateOptions, SessionReplayPayload } from '@shared/types'
 import { detectShell, buildAgentCommand } from './ShellDetector'
-
-function getIdeServerPort(): number | null {
-  return null
-}
+import { isClaudeCodeType } from '@shared/types'
+import { createFastTerminalMcpConfig } from './FastTerminalMcpService'
 
 const isWindows = process.platform === 'win32'
 const HeadlessTerminal = (headlessPkg as { Terminal: new (options?: Record<string, unknown>) => import('@xterm/headless').Terminal }).Terminal
@@ -93,9 +91,54 @@ function getResumePattern(type: SessionCreateOptions['type']): RegExp | null {
   return null
 }
 
+interface McpBridgeEnv {
+  port: number
+  token: string
+}
+
+export type DataObserver = (ptyId: string) => void
+
 export class PtyManager {
   private readonly ptys = new Map<string, ManagedPty>()
   private idCounter = 0
+
+  /** Populated by OrchestratorService.init() so PTYs spawned afterwards see the
+   *  MCP bridge port + token in their env. Sessions spawned before init() will
+   *  not have access to the bridge — orchestrator should be initialized first. */
+  private mcpEnv: McpBridgeEnv | null = null
+
+  /** Observers notified once per visible PTY data chunk. Used by the
+   *  orchestrator service to track per-PTY idle time for /wait_idle. */
+  private readonly dataObservers = new Set<DataObserver>()
+
+  setMcpEnv(env: McpBridgeEnv | null): void {
+    this.mcpEnv = env
+  }
+
+  /** Subscribe to PTY data emissions. Returns an unsubscribe function. */
+  addDataObserver(observer: DataObserver): () => void {
+    this.dataObservers.add(observer)
+    return () => { this.dataObservers.delete(observer) }
+  }
+
+  /** Reverse lookup: renderer Session.id → ptyId. Used by the MCP bridge to
+   *  let agents address sessions by the same id shown in the UI. */
+  findPtyIdBySessionId(sessionId: string): string | null {
+    for (const [ptyId, managed] of this.ptys) {
+      if (managed.sessionId === sessionId) return ptyId
+    }
+    return null
+  }
+
+  private notifyDataObservers(ptyId: string): void {
+    for (const observer of this.dataObservers) {
+      try {
+        observer(ptyId)
+      } catch {
+        // Observer errors must never break the data path.
+      }
+    }
+  }
 
   create(options: SessionCreateOptions): { id: string; cwd: string } {
     const id = `pty-${++this.idCounter}-${Date.now()}`
@@ -106,6 +149,43 @@ export class PtyManager {
 
     // For agent sessions, wrap the agent command
     const agentCmd = buildAgentCommand(options.type, options.sessionId, options.resume, options.resumeUUID)
+
+    // For Claude Code sessions, append --mcp-config pointing to a per-session
+    // JSON that carries the live orchestrator port/token. This is what gives
+    // the agent zero-config access to ft_* tools from inside FastTerminal.
+    if (agentCmd && isClaudeCodeType(options.type) && options.sessionId && this.mcpEnv) {
+      const mcpConfigPath = createFastTerminalMcpConfig({
+        port: this.mcpEnv.port,
+        token: this.mcpEnv.token,
+        sessionId: options.sessionId,
+      })
+      if (mcpConfigPath) {
+        agentCmd.args.push('--mcp-config', mcpConfigPath)
+      }
+    }
+    // Codex spawns MCP servers with a sealed env — only entries from
+    // config.toml are visible. SESSION_ID is per-PTY, so we can't store it
+    // there; override it with Codex's `-c` flag.
+    //
+    // Pass the value WITHOUT TOML quotes: session ids like `mo1gtu87-rsjk8r`
+    // aren't valid TOML (bare identifier with dash), so codex falls back to
+    // a literal string. Quoting with `"..."` would be TOML-correct but the
+    // shell layer (pwsh / bash) then escapes the `"` itself, and PowerShell
+    // does not honor `\"` — the arg splits mid-value and codex treats the
+    // remainder as a PROMPT positional argument.
+    if (
+      agentCmd
+      && (options.type === 'codex' || options.type === 'codex-yolo')
+      && options.sessionId
+      && this.mcpEnv
+    ) {
+      agentCmd.args = [
+        '-c',
+        `mcp_servers.fastterminal.env.FASTTERMINAL_SESSION_ID=${options.sessionId}`,
+        ...agentCmd.args,
+      ]
+    }
+
     if (agentCmd && !isWindows) {
       const fullCmd = [agentCmd.command, ...agentCmd.args].join(' ')
       shellArgs = ['-c', fullCmd]
@@ -121,8 +201,11 @@ export class PtyManager {
       COLORTERM: 'truecolor',
       // Inject session ID so hook scripts can identify this exact session
       ...(options.sessionId ? { FASTTERMINAL_SESSION_ID: options.sessionId } : {}),
-      // IDE server port for Claude Code MCP integration
-      ...(getIdeServerPort() ? { FASTTERMINAL_IDE_PORT: String(getIdeServerPort()) } : {}),
+      // FastTerminal MCP bridge — agents can use these to talk back to us.
+      ...(this.mcpEnv ? {
+        FASTTERMINAL_IDE_PORT: String(this.mcpEnv.port),
+        FASTTERMINAL_MCP_TOKEN: this.mcpEnv.token,
+      } : {}),
       ...(options.env ?? {}),
     }
 
@@ -194,6 +277,7 @@ export class PtyManager {
       queueMirrorWrite(managed.mirror, data)
       managed.dataSeq += 1
       sendToWindows({ ptyId: id, data, seq: managed.dataSeq })
+      this.notifyDataObservers(id)
     }
 
     const startForwardingAgentOutput = (): void => {

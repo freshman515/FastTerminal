@@ -10,6 +10,7 @@ import { useUIStore } from '@/stores/ui'
 import { useSessionsStore } from '@/stores/sessions'
 import { useClaudeGuiStore } from '@/stores/claudeGui'
 import { useActivityMonitor } from '@/hooks/useActivityMonitor'
+import { useMcpBridge } from '@/hooks/useMcpBridge'
 import { useEffect, useState } from 'react'
 import { isClaudeCodeType } from '@shared/types'
 import { toggleCurrentSessionFullscreen } from '@/lib/currentSessionFullscreen'
@@ -55,6 +56,7 @@ export function App(): JSX.Element {
   }, [])
 
   useActivityMonitor()
+  useMcpBridge()
   const activePaneTabId = usePanesStore((s) => s.paneActiveSession[s.activePaneId] ?? null)
 
   useEffect(() => {

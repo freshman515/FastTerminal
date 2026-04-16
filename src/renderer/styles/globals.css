@@ -157,6 +157,13 @@ html, body, #root {
   user-select: text;
 }
 
+/* Allow mouse selection & copy inside xterm terminals */
+.xterm,
+.xterm .xterm-screen,
+.xterm .xterm-rows {
+  user-select: text;
+}
+
 /* ─── Modern terminal tab ───
    Active tab is lifted with a subtle raised background, top accent bar,
    and soft ambient shadow. Inactive tabs use transparent bg + hairline

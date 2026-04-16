@@ -70,7 +70,9 @@ export function useXterm(
       const worktree = currentSession.worktreeId
         ? worktreeStore.worktrees.find((w) => w.id === currentSession.worktreeId)
         : worktreeStore.getMainWorktree(currentSession.projectId)
-      cwd = worktree?.path ?? project?.path ?? ''
+      // Final fallback: a session.cwd hint set by the MCP bridge (Meta-Agent
+      // creating a session for a path that isn't a tracked project/worktree).
+      cwd = worktree?.path ?? project?.path ?? currentSession.cwd ?? ''
     }
     const sessionId = currentSession.id
     const sessionType = currentSession.type
@@ -168,7 +170,7 @@ export function useXterm(
     let firstDataSynced = false
     const offData = window.api.session.onData((event) => {
       if (event.ptyId && event.ptyId === ptyId) {
-        trackSessionOutput(sessionId, event.data.length)
+        trackSessionOutput(sessionId, event.data)
         if (!restoreReady) {
           pendingRestoreEvents.push(event)
           return

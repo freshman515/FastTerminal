@@ -460,6 +460,24 @@ export interface ActiveTask {
   createdAt: number
 }
 
+// ─── Agent Orchestration Types ───
+
+export interface OrchestrationCreateWorktreeRequest {
+  cwd: string
+  runId: string
+  workerId: string
+  slug?: string
+}
+
+export interface OrchestrationCreateWorktreeResult {
+  ok: boolean
+  cwd: string
+  path: string
+  branch: string | null
+  fallback: boolean
+  error?: string
+}
+
 // ─── IPC Channels ───
 
 export const IPC = {
@@ -510,7 +528,64 @@ export const IPC = {
   UPDATER_EVENT: 'updater:event',
   CLAUDE_PROMPT_OPTIMIZE: 'claude-prompt:optimize',
   CLAUDE_DIFF_REVIEW: 'claude-diff:review',
+
+  // ─── Meta-Agent / MCP bridge ───
+  // main → renderer: ask renderer to perform an action requested by the
+  // FastTerminal MCP server (called by an agent acting as orchestrator).
+  // renderer → main: reply with the result keyed by requestId.
+  MCP_LIST_SESSIONS_REQUEST: 'mcp:list-sessions-request',
+  MCP_LIST_SESSIONS_RESPONSE: 'mcp:list-sessions-response',
+  MCP_CREATE_SESSION_REQUEST: 'mcp:create-session-request',
+  MCP_CREATE_SESSION_RESPONSE: 'mcp:create-session-response',
+
+  ORCHESTRATION_CREATE_WORKTREE: 'orchestration:create-worktree',
 } as const
+
+// ─── Meta-Agent (FastTerminal MCP) ───
+
+export interface McpSessionInfo {
+  /** Renderer session id (matches the value shown in UI tabs). */
+  id: string
+  name: string
+  type: SessionType
+  status: SessionStatus
+  cwd: string | null
+  projectId: string | null
+  worktreeId: string | null
+  paneId: string | null
+  /** True when this session is the agent that owns the MCP bridge — never act on self. */
+  isSelf: boolean
+  /** True when the PTY backing this session is alive. */
+  hasPty: boolean
+}
+
+export interface McpCreateSessionRequest {
+  requestId: string
+  type: SessionType
+  /** Absolute working directory. Empty string = home dir (PtyManager fallback). */
+  cwd: string
+  /** Optional renderer projectId to attach the session to. */
+  projectId?: string | null
+  /** Optional worktree id (Worktree.id). */
+  worktreeId?: string | null
+  /** Display name for the new session tab. */
+  name?: string | null
+  /** When set, an initial command will be written to the PTY after creation. */
+  initialInput?: string | null
+}
+
+export interface McpCreateSessionResponse {
+  requestId: string
+  ok: boolean
+  /** Renderer Session.id of the newly-created session (when ok). */
+  sessionId?: string
+  error?: string
+}
+
+export interface McpListSessionsResponse {
+  requestId: string
+  sessions: McpSessionInfo[]
+}
 
 // ─── Session Type Labels ───
 

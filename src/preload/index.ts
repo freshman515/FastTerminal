@@ -15,7 +15,12 @@ import type {
   ExternalIdeId,
   ExternalIdeOption,
   FileSearchResult,
+  McpCreateSessionRequest,
+  McpCreateSessionResponse,
+  McpSessionInfo,
   OpenIdeResult,
+  OrchestrationCreateWorktreeRequest,
+  OrchestrationCreateWorktreeResult,
   ProjectSearchMatch,
   SearchQueryOptions,
   Session,
@@ -302,6 +307,11 @@ const api = {
     write: (key: string, value: unknown) => ipcRenderer.invoke('config:write', key, value),
   },
 
+  orchestration: {
+    createWorktree: (request: OrchestrationCreateWorktreeRequest) =>
+      ipcRenderer.invoke(IPC.ORCHESTRATION_CREATE_WORKTREE, request) as Promise<OrchestrationCreateWorktreeResult>,
+  },
+
   overlay: {
     sendToast: (toast: unknown) => ipcRenderer.send('overlay:toast', toast),
     removeToast: (id: string) => ipcRenderer.send('overlay:toast-remove', id),
@@ -394,6 +404,26 @@ const api = {
       return raw ? raw.split(',') : []
     },
     getTitle: () => new URLSearchParams(window.location.search).get('title') ?? 'FastTerminal',
+  },
+
+  // ─── FastTerminal MCP bridge (Meta-Agent) ───
+  // Renderer subscribes to requests coming from the orchestrator (main side
+  // HTTP server) and writes back the result via the *Response IPC.
+  mcp: {
+    onListSessionsRequest: (callback: (req: { requestId: string }) => void) => {
+      const handler = (_: unknown, req: { requestId: string }) => callback(req)
+      ipcRenderer.on(IPC.MCP_LIST_SESSIONS_REQUEST, handler)
+      return () => ipcRenderer.removeListener(IPC.MCP_LIST_SESSIONS_REQUEST, handler)
+    },
+    respondListSessions: (payload: { requestId: string; sessions: McpSessionInfo[] }) =>
+      ipcRenderer.send(IPC.MCP_LIST_SESSIONS_RESPONSE, payload),
+    onCreateSessionRequest: (callback: (req: McpCreateSessionRequest) => void) => {
+      const handler = (_: unknown, req: McpCreateSessionRequest) => callback(req)
+      ipcRenderer.on(IPC.MCP_CREATE_SESSION_REQUEST, handler)
+      return () => ipcRenderer.removeListener(IPC.MCP_CREATE_SESSION_REQUEST, handler)
+    },
+    respondCreateSession: (payload: McpCreateSessionResponse) =>
+      ipcRenderer.send(IPC.MCP_CREATE_SESSION_RESPONSE, payload),
   },
 
   platform: process.platform,

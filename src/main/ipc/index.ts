@@ -7,6 +7,8 @@ import { registerMediaHandlers } from './media'
 import { registerClaudeGuiHandlers } from './claudeGui'
 import { registerOpencodeHandlers } from './opencode'
 import { registerUpdaterHandlers } from './updater'
+import { registerMcpHandlers } from './mcp'
+import { registerOrchestrationHandlers } from './orchestration'
 
 export function registerAllHandlers(): void {
   registerWindowHandlers()
@@ -18,4 +20,6 @@ export function registerAllHandlers(): void {
   registerClaudeGuiHandlers()
   registerOpencodeHandlers()
   registerUpdaterHandlers()
+  registerMcpHandlers()
+  registerOrchestrationHandlers()
 }

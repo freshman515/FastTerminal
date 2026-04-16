@@ -8,6 +8,7 @@ import { mediaMonitor } from './services/MediaMonitor'
 import { opencodeService } from './services/OpencodeService'
 import { claudeGuiService } from './services/ClaudeGuiService'
 import { updaterService } from './services/UpdaterService'
+import { orchestratorService } from './services/OrchestratorService'
 
 let mainWindow: BrowserWindow | null = null
 const detachedWindows = new Map<string, BrowserWindow>()
@@ -57,10 +58,29 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
   registerAllHandlers()
+
+  // Boot the FastTerminal MCP bridge HTTP server BEFORE spawning any PTYs,
+  // so the env vars (FASTTERMINAL_IDE_PORT / FASTTERMINAL_MCP_TOKEN) are
+  // already in place when sessions start. If init fails we keep going — the
+  // app must still launch even when the bridge can't bind a port.
+  try {
+    await orchestratorService.init()
+    const port = orchestratorService.getPort()
+    const token = orchestratorService.getToken()
+    if (port !== null && token !== null) {
+      ptyManager.setMcpEnv({ port, token })
+    }
+  } catch (err) {
+    console.error('[orchestrator] failed to start MCP bridge HTTP server:', err)
+  }
+
   createWindow()
+  if (mainWindow) {
+    orchestratorService.setMainWindow(mainWindow)
+  }
   mediaMonitor.start()
 
   // Auto-updater: register listeners first, then check after a short delay
@@ -290,6 +310,7 @@ app.on('before-quit', async (e) => {
   mediaMonitor.stop()
   void claudeGuiService.stop()
   opencodeService.disposeAll()
+  orchestratorService.dispose()
   ptyManager.destroyAll()
   app.quit()
 })

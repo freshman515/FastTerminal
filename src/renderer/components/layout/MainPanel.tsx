@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useSessionsStore } from '@/stores/sessions'
 import { usePanesStore } from '@/stores/panes'
 import { SplitContainer } from '@/components/split/SplitContainer'
+import { AgentOrchestratorPanel } from '@/components/rightpanel/AgentOrchestratorPanel'
 
 export function MainPanel(): JSX.Element {
   const sessions = useSessionsStore((s) => s.sessions)
@@ -13,8 +14,11 @@ export function MainPanel(): JSX.Element {
   }, [activeSession?.name, activeSession?.id])
 
   return (
-    <div className="flex h-full flex-col bg-[var(--color-bg-primary)]">
-      <SplitContainer />
+    <div className="relative flex h-full bg-[var(--color-bg-primary)]">
+      <div className="min-w-0 flex-1">
+        <SplitContainer />
+      </div>
+      <AgentOrchestratorPanel />
     </div>
   )
 }
