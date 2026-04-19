@@ -280,8 +280,8 @@ export function applyTerminalThemeToApp(themeName: string): void {
   } else {
     // Fallback: derive from terminal palette (for imported/legacy themes without ui)
     const titleBarBg = isDark
-      ? mixColors(xterm.background, xterm.brightBlack, 0.25)
-      : mixColors(xterm.background, xterm.black, 0.05)
+      ? mixColors(xterm.background, '#606068', 0.30)
+      : mixColors(xterm.background, '#000000', 0.12)
     root.style.setProperty('--color-titlebar-bg', titleBarBg)
     root.style.setProperty('--color-bg-primary', xterm.background)
     root.style.setProperty('--color-bg-secondary', isDark

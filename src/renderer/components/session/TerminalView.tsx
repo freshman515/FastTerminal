@@ -1,7 +1,7 @@
-import { X, ChevronUp, ChevronDown } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { X, ChevronUp, ChevronDown, Copy, ClipboardPaste, ListChecks, Search, Eraser } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { createPortal } from 'react-dom'
 import type { Session } from '@shared/types'
-import { cn } from '@/lib/utils'
 import { useXterm } from '@/hooks/useXterm'
 
 interface TerminalViewProps {
@@ -9,11 +9,15 @@ interface TerminalViewProps {
   isActive: boolean
 }
 
+const CONTEXT_MENU_ITEM =
+  'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[var(--ui-font-sm)] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--color-text-secondary)]'
+
 export function TerminalView({ session, isActive }: TerminalViewProps): JSX.Element {
-  const { containerRef, searchAddonRef } = useXterm(session, isActive)
+  const { containerRef, searchAddonRef, terminalRef } = useXterm(session, isActive)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; hasSelection: boolean } | null>(null)
 
   const openSearch = useCallback(() => {
     setSearchOpen(true)
@@ -68,6 +72,72 @@ export function TerminalView({ session, isActive }: TerminalViewProps): JSX.Elem
     }
   }, [searchText, searchAddonRef])
 
+  // Close context menu on Escape
+  useEffect(() => {
+    if (!contextMenu) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setContextMenu(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [contextMenu])
+
+  const openContextMenu = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const term = terminalRef.current
+    const hasSelection = Boolean(term?.getSelection())
+    setContextMenu({ x: event.clientX, y: event.clientY, hasSelection })
+  }, [terminalRef])
+
+  const doCopy = useCallback(() => {
+    setContextMenu(null)
+    const term = terminalRef.current
+    if (!term) return
+    const selection = term.getSelection()
+    if (!selection) return
+    void navigator.clipboard.writeText(selection)
+    term.clearSelection()
+  }, [terminalRef])
+
+  const doPaste = useCallback(async () => {
+    setContextMenu(null)
+    const term = terminalRef.current
+    if (!term) return
+    try {
+      const text = await navigator.clipboard.readText()
+      if (text) {
+        term.focus()
+        term.paste(text)
+      }
+    } catch {
+      // clipboard unavailable — ignore
+    }
+  }, [terminalRef])
+
+  const doSelectAll = useCallback(() => {
+    setContextMenu(null)
+    terminalRef.current?.selectAll()
+  }, [terminalRef])
+
+  const doFind = useCallback(() => {
+    setContextMenu(null)
+    openSearch()
+  }, [openSearch])
+
+  const doClear = useCallback(() => {
+    setContextMenu(null)
+    terminalRef.current?.clear()
+  }, [terminalRef])
+
+  const menuWidth = 200
+  const menuHeight = 234 // ~5 items + separators
+  const contextMenuStyle = contextMenu
+    ? {
+        left: Math.max(8, Math.min(contextMenu.x, window.innerWidth - menuWidth - 8)),
+        top: Math.max(8, Math.min(contextMenu.y, window.innerHeight - menuHeight - 8)),
+      }
+    : undefined
+
   return (
     <div className="h-full w-full bg-[var(--color-terminal-bg)]">
       <div className="relative h-full w-full bg-[var(--color-terminal-bg)]">
@@ -102,13 +172,87 @@ export function TerminalView({ session, isActive }: TerminalViewProps): JSX.Elem
         </div>
       )}
 
-        <div className="absolute inset-0 bg-[var(--color-terminal-bg)] p-[10px]">
+        <div className="absolute inset-0 bg-[var(--color-terminal-bg)] p-[10px]" onContextMenu={openContextMenu}>
         <div
           ref={containerRef}
           className="h-full w-full bg-[var(--color-terminal-bg)]"
         />
       </div>
       </div>
+      {contextMenu && contextMenuStyle && createPortal(
+        <>
+          <div
+            className="fixed inset-0 z-[119]"
+            onMouseDown={() => setContextMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setContextMenu(null)
+            }}
+          />
+          <div
+            className="no-drag fixed z-[120] w-[200px] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] py-1 shadow-xl shadow-black/35"
+            style={contextMenuStyle}
+          >
+            <button
+              type="button"
+              className={CONTEXT_MENU_ITEM}
+              onClick={doCopy}
+              disabled={!contextMenu.hasSelection}
+            >
+              <span className="flex items-center gap-2">
+                <Copy size={13} />
+                复制
+              </span>
+              <span className="text-[10px] text-[var(--color-text-tertiary)]">Ctrl+C</span>
+            </button>
+            <button
+              type="button"
+              className={CONTEXT_MENU_ITEM}
+              onClick={doPaste}
+            >
+              <span className="flex items-center gap-2">
+                <ClipboardPaste size={13} />
+                粘贴
+              </span>
+              <span className="text-[10px] text-[var(--color-text-tertiary)]">Ctrl+V</span>
+            </button>
+            <div className="my-1 h-px bg-[var(--color-border)]" />
+            <button
+              type="button"
+              className={CONTEXT_MENU_ITEM}
+              onClick={doSelectAll}
+            >
+              <span className="flex items-center gap-2">
+                <ListChecks size={13} />
+                全选
+              </span>
+            </button>
+            <button
+              type="button"
+              className={CONTEXT_MENU_ITEM}
+              onClick={doFind}
+            >
+              <span className="flex items-center gap-2">
+                <Search size={13} />
+                查找
+              </span>
+              <span className="text-[10px] text-[var(--color-text-tertiary)]">Ctrl+F</span>
+            </button>
+            <div className="my-1 h-px bg-[var(--color-border)]" />
+            <button
+              type="button"
+              className={CONTEXT_MENU_ITEM}
+              onClick={doClear}
+            >
+              <span className="flex items-center gap-2">
+                <Eraser size={13} />
+                清屏
+              </span>
+            </button>
+          </div>
+        </>,
+        document.body,
+      )}
     </div>
   )
 }

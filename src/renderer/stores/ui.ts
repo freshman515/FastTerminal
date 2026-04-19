@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ToastNotification } from '@shared/types'
+import type { TerminalShellId, ToastNotification } from '@shared/types'
 import { generateId } from '@/lib/utils'
 import { applyTerminalThemeToApp, clearTerminalThemeFromApp, registerCustomThemes, type GhosttyTheme } from '@/lib/ghosttyTheme'
 
@@ -9,6 +9,24 @@ export type DockPanelId = 'projects' | 'agent' | 'commands' | 'prompts' | 'promp
 export type TodoPriority = 'low' | 'medium' | 'high'
 export type GitChangesViewMode = 'flat' | 'tree'
 export type GitReviewFixMode = 'claude-gui' | 'claude-code-cli'
+export type NewSessionMenuItemId =
+  | 'terminal'
+  | 'admin-terminal'
+  | 'claude-code'
+  | 'claude-code-yolo'
+  | 'codex'
+  | 'codex-yolo'
+  | 'opencode'
+
+export const DEFAULT_NEW_SESSION_MENU_ITEMS: NewSessionMenuItemId[] = [
+  'terminal',
+  'admin-terminal',
+  'claude-code',
+  'claude-code-yolo',
+  'codex',
+  'codex-yolo',
+  'opencode',
+]
 
 export const DOCK_PANEL_IDS: DockPanelId[] = [
   'projects',
@@ -95,6 +113,7 @@ export interface AppSettings {
   uiFontFamily: string
   terminalFontSize: number
   terminalFontFamily: string
+  terminalShell: TerminalShellId
   editorFontSize: number
   editorFontFamily: string
   editorWordWrap: boolean
@@ -104,6 +123,7 @@ export interface AppSettings {
   editorFontLigatures: boolean
   visibleGroupId: string | null // null = show all groups
   defaultSessionType: 'claude-code' | 'claude-code-yolo' | 'terminal' | 'codex' | 'codex-yolo' | 'opencode'
+  newSessionMenuItems: NewSessionMenuItemId[]
   recentPaths: string[]
   visualizerMode: VisualizerMode
   showMusicPlayer: boolean
@@ -152,6 +172,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   uiFontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif",
   terminalFontSize: 18,
   terminalFontFamily: "'JetBrainsMono Nerd Font', ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace",
+  terminalShell: 'auto',
   editorFontSize: 16,
   editorFontFamily: "'JetBrainsMono Nerd Font', ui-monospace, SF Mono, Menlo, Monaco, Consolas, monospace",
   editorWordWrap: false,
@@ -161,6 +182,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   editorFontLigatures: true,
   visibleGroupId: null,
   defaultSessionType: 'claude-code',
+  newSessionMenuItems: [...DEFAULT_NEW_SESSION_MENU_ITEMS],
   recentPaths: [],
   visualizerMode: 'melody',
   showMusicPlayer: true,
@@ -284,6 +306,35 @@ function normalizeQuickCommandGroups(raw: unknown): { groups: QuickCommandGroup[
   }
 
   return { groups, seeded }
+}
+
+function normalizeNewSessionMenuItems(raw: unknown): { items: NewSessionMenuItemId[]; seeded: boolean } {
+  if (!Array.isArray(raw)) return { items: [...DEFAULT_NEW_SESSION_MENU_ITEMS], seeded: false }
+
+  let seeded = false
+  const seen = new Set<NewSessionMenuItemId>()
+  const items: NewSessionMenuItemId[] = []
+  const validIds = new Set(DEFAULT_NEW_SESSION_MENU_ITEMS)
+
+  for (const item of raw) {
+    if (!validIds.has(item as NewSessionMenuItemId)) {
+      seeded = true
+      continue
+    }
+    const id = item as NewSessionMenuItemId
+    if (seen.has(id)) {
+      seeded = true
+      continue
+    }
+    seen.add(id)
+    items.push(id)
+  }
+
+  if (items.length === 0) {
+    return { items: [...DEFAULT_NEW_SESSION_MENU_ITEMS], seeded: true }
+  }
+
+  return { items, seeded }
 }
 
 function normalizeQuickCommands(
@@ -862,6 +913,14 @@ export const useUIStore = create<UIState>((set, get) => ({
       if (typeof raw.uiFontFamily === 'string') s.uiFontFamily = raw.uiFontFamily
       if (typeof raw.terminalFontSize === 'number') s.terminalFontSize = raw.terminalFontSize
       if (typeof raw.terminalFontFamily === 'string') s.terminalFontFamily = raw.terminalFontFamily
+      if (
+        raw.terminalShell === 'auto'
+        || raw.terminalShell === 'pwsh'
+        || raw.terminalShell === 'powershell'
+        || raw.terminalShell === 'cmd'
+      ) {
+        s.terminalShell = raw.terminalShell
+      }
       if (typeof raw.editorFontSize === 'number') s.editorFontSize = Math.max(10, Math.min(28, raw.editorFontSize))
       if (typeof raw.editorFontFamily === 'string') s.editorFontFamily = raw.editorFontFamily
       if (typeof raw.editorWordWrap === 'boolean') s.editorWordWrap = raw.editorWordWrap
@@ -871,6 +930,11 @@ export const useUIStore = create<UIState>((set, get) => ({
       if (typeof raw.editorFontLigatures === 'boolean') s.editorFontLigatures = raw.editorFontLigatures
       if (raw.visibleGroupId === null || typeof raw.visibleGroupId === 'string') s.visibleGroupId = raw.visibleGroupId as string | null
       if (typeof raw.defaultSessionType === 'string' && ['claude-code', 'claude-code-yolo', 'terminal', 'codex', 'codex-yolo', 'opencode'].includes(raw.defaultSessionType)) s.defaultSessionType = raw.defaultSessionType as AppSettings['defaultSessionType']
+      if (raw.newSessionMenuItems !== undefined) {
+        const normalizedNewSessionMenuItems = normalizeNewSessionMenuItems(raw.newSessionMenuItems)
+        s.newSessionMenuItems = normalizedNewSessionMenuItems.items
+        shouldPersistSettings ||= normalizedNewSessionMenuItems.seeded
+      }
       if (Array.isArray(raw.recentPaths)) s.recentPaths = raw.recentPaths.filter((p) => typeof p === 'string').slice(0, 10) as string[]
       if (raw.visualizerMode === 'melody' || raw.visualizerMode === 'bars') s.visualizerMode = raw.visualizerMode
       if (typeof raw.showMusicPlayer === 'boolean') s.showMusicPlayer = raw.showMusicPlayer

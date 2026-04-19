@@ -1,7 +1,12 @@
 import { X, Settings, Type, Terminal, Layers, AudioLines, BarChart3, ExternalLink, Trash2, Bot, Eye, EyeOff, FileCode2, Search, Palette, GitBranch, Bell, Volume2, SplitSquareHorizontal, Briefcase, Play } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { TerminalShellOption } from '@shared/types'
 import { cn } from '@/lib/utils'
-import { useUIStore, type AppSettings } from '@/stores/ui'
+import {
+  useUIStore,
+  type AppSettings,
+  type NewSessionMenuItemId,
+} from '@/stores/ui'
 import { playTaskCompleteSound } from '@/lib/notificationSound'
 import { useClaudeGuiStore, type ClaudeGuiPreferences } from '@/stores/claudeGui'
 import { useGroupsStore } from '@/stores/groups'
@@ -222,8 +227,62 @@ const SESSION_TYPE_OPTIONS = [
   { id: 'terminal', label: '终端' },
 ] as const
 
+const NEW_SESSION_MENU_OPTIONS: Array<{ id: NewSessionMenuItemId; label: string }> = [
+  { id: 'terminal', label: '终端' },
+  { id: 'admin-terminal', label: '终端（管理员）' },
+  { id: 'claude-code', label: 'Claude Code' },
+  { id: 'claude-code-yolo', label: 'Claude Code YOLO' },
+  { id: 'codex', label: 'Codex' },
+  { id: 'codex-yolo', label: 'Codex YOLO' },
+  { id: 'opencode', label: 'OpenCode' },
+]
+const NEW_SESSION_MENU_OPTION_BY_ID = new Map(NEW_SESSION_MENU_OPTIONS.map((option) => [option.id, option]))
+
 function GeneralPage({ settings, onUpdate }: { settings: AppSettings; onUpdate: (k: keyof AppSettings, v: unknown) => void }): JSX.Element {
   const groups = useGroupsStore((s) => s.groups)
+  const [draggedMenuItemId, setDraggedMenuItemId] = useState<NewSessionMenuItemId | null>(null)
+  const suppressMenuItemClickRef = useRef(false)
+  const enabledMenuItems = new Set(settings.newSessionMenuItems)
+  const orderedMenuOptions = [
+    ...settings.newSessionMenuItems
+      .map((id) => NEW_SESSION_MENU_OPTION_BY_ID.get(id))
+      .filter((option): option is { id: NewSessionMenuItemId; label: string } => Boolean(option)),
+    ...NEW_SESSION_MENU_OPTIONS.filter((option) => !enabledMenuItems.has(option.id)),
+  ]
+
+  const toggleNewSessionMenuItem = (id: NewSessionMenuItemId): void => {
+    const enabled = enabledMenuItems.has(id)
+    if (enabled && settings.newSessionMenuItems.length <= 1) return
+
+    onUpdate(
+      'newSessionMenuItems',
+      enabled
+        ? settings.newSessionMenuItems.filter((item) => item !== id)
+        : [...settings.newSessionMenuItems, id],
+    )
+  }
+
+  const reorderNewSessionMenuItem = (targetId: NewSessionMenuItemId): void => {
+    if (!draggedMenuItemId || draggedMenuItemId === targetId) return
+    if (!enabledMenuItems.has(draggedMenuItemId) || !enabledMenuItems.has(targetId)) return
+
+    const current = [...settings.newSessionMenuItems]
+    const fromIndex = current.indexOf(draggedMenuItemId)
+    const toIndex = current.indexOf(targetId)
+    if (fromIndex < 0 || toIndex < 0) return
+
+    const [moved] = current.splice(fromIndex, 1)
+    current.splice(toIndex, 0, moved)
+    onUpdate('newSessionMenuItems', current)
+  }
+
+  const finishNewSessionMenuDrag = (): void => {
+    suppressMenuItemClickRef.current = true
+    setDraggedMenuItemId(null)
+    window.setTimeout(() => {
+      suppressMenuItemClickRef.current = false
+    }, 0)
+  }
 
   return (
     <div className={PAGE_STACK}>
@@ -284,6 +343,53 @@ function GeneralPage({ settings, onUpdate }: { settings: AppSettings; onUpdate: 
               </button>
             ))}
           </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[var(--ui-font-xs)] text-[var(--color-text-tertiary)]">新建会话菜单显示项</span>
+          <div className="flex flex-wrap gap-1">
+            {orderedMenuOptions.map((opt) => {
+              const enabled = enabledMenuItems.has(opt.id)
+              const locked = enabled && settings.newSessionMenuItems.length <= 1
+              return (
+                <button
+                  key={opt.id}
+                  draggable={enabled}
+                  disabled={locked}
+                  onDragStart={(event) => {
+                    if (!enabled) return
+                    setDraggedMenuItemId(opt.id)
+                    event.dataTransfer.effectAllowed = 'move'
+                    event.dataTransfer.setData('text/plain', opt.id)
+                  }}
+                  onDragOver={(event) => {
+                    if (!enabled || !draggedMenuItemId) return
+                    event.preventDefault()
+                    event.dataTransfer.dropEffect = 'move'
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    reorderNewSessionMenuItem(opt.id)
+                    finishNewSessionMenuDrag()
+                  }}
+                  onDragEnd={finishNewSessionMenuDrag}
+                  onClick={() => {
+                    if (suppressMenuItemClickRef.current) return
+                    toggleNewSessionMenuItem(opt.id)
+                  }}
+                  className={cn(
+                    'rounded-[var(--radius-md)] border px-3 py-1 text-[var(--ui-font-sm)] transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                    enabled
+                      ? 'cursor-grab border-[var(--color-accent)] bg-[var(--color-accent-muted)] text-[var(--color-text-primary)] active:cursor-grabbing'
+                      : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]',
+                    draggedMenuItemId === opt.id && 'opacity-50',
+                  )}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+          <span className="text-[10px] text-[var(--color-text-tertiary)]">已启用的项目可拖拽排序；至少保留一个菜单项。</span>
         </div>
       </SettingsSection>
 
@@ -804,26 +910,108 @@ function AppearancePage({ settings, onUpdate }: { settings: AppSettings; onUpdat
 }
 
 function TerminalPage({ settings, onUpdate }: { settings: AppSettings; onUpdate: (k: keyof AppSettings, v: unknown) => void }): JSX.Element {
+  const [shellOptions, setShellOptions] = useState<TerminalShellOption[]>([
+    {
+      id: 'auto',
+      label: '自动检测',
+      description: '正在检测可用终端。',
+      available: true,
+    },
+  ])
+
+  useEffect(() => {
+    let cancelled = false
+    window.api.session
+      .listTerminalShells()
+      .then((options) => {
+        if (!cancelled && options.length > 0) setShellOptions(options)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setShellOptions([
+            {
+              id: 'auto',
+              label: '自动检测',
+              description: '使用系统默认终端。',
+              available: true,
+            },
+          ])
+        }
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  const selectedShell = shellOptions.find((option) => option.id === settings.terminalShell)
+  const selectedShellMissing = Boolean(
+    selectedShell
+    && !selectedShell.available
+    && selectedShell.id !== 'auto',
+  )
+
   return (
     <div className={PAGE_STACK}>
-      <PageIntro title="终端设置" description="统一终端的字号与字体，确保长时间阅读输出时依然紧凑、清晰。" />
-      <div className="flex items-center gap-2 mb-1">
-        <Terminal size={14} className="text-[var(--color-success)]" />
-        <span className="text-[var(--ui-font-sm)] font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
-          终端排版
-        </span>
-      </div>
-      <FontSizeSlider label="字号" value={settings.terminalFontSize} min={10} max={24} onChange={(v) => onUpdate('terminalFontSize', v)} />
-      <FontSelect label="字体" value={settings.terminalFontFamily} options={TERMINAL_FONT_OPTIONS} labels={TERMINAL_FONT_LABELS} onChange={(v) => onUpdate('terminalFontFamily', v)} />
-      <div
-        className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[#1a1a1e] px-3 py-2"
-        style={{ fontSize: settings.terminalFontSize, fontFamily: settings.terminalFontFamily }}
-      >
-        <span style={{ color: '#3ecf7b' }}>$</span>
-        <span style={{ color: '#e8e8ec' }}> git status</span>
-        <br />
-        <span style={{ color: '#8e8e96' }}>当前分支为 main，输出内容在这里预览</span>
-      </div>
+      <PageIntro title="终端设置" description="选择新建会话使用的终端，并统一终端字号与字体。" />
+
+      <SettingsSection icon={Terminal} title="默认终端" description="只影响新建终端和 CLI 会话，已打开的会话不会被重启。">
+        <div className="grid grid-cols-2 gap-2">
+          {shellOptions.map((option) => {
+            const active = settings.terminalShell === option.id
+            return (
+              <button
+                key={option.id}
+                onClick={() => onUpdate('terminalShell', option.id)}
+                className={cn(
+                  'flex min-h-[86px] flex-col rounded-[var(--radius-md)] border px-3 py-2 text-left transition-colors',
+                  active
+                    ? selectedShellMissing
+                      ? 'border-[var(--color-warning)] bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] text-[var(--color-text-primary)]'
+                      : 'border-[var(--color-accent)] bg-[var(--color-accent-muted)] text-[var(--color-text-primary)]'
+                    : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-hover)]',
+                )}
+              >
+                <span className="flex items-center justify-between gap-2 text-[var(--ui-font-sm)] font-medium">
+                  {option.label}
+                  <span className={cn(
+                    'rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[10px] font-normal',
+                    option.available
+                      ? 'bg-[color-mix(in_srgb,var(--color-success)_14%,transparent)] text-[var(--color-success)]'
+                      : 'bg-[color-mix(in_srgb,var(--color-warning)_14%,transparent)] text-[var(--color-warning)]',
+                  )}>
+                    {option.available ? '已检测' : '未安装'}
+                  </span>
+                </span>
+                <span className="mt-1 text-[var(--ui-font-2xs)] leading-5 text-[var(--color-text-tertiary)]">
+                  {option.description}
+                </span>
+                {option.path && (
+                  <span className="mt-auto break-all pt-2 font-mono text-[10px] text-[var(--color-text-tertiary)]">
+                    {option.path}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+        {selectedShellMissing && selectedShell && (
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-warning)]/50 bg-[color-mix(in_srgb,var(--color-warning)_10%,transparent)] px-3 py-2 text-[var(--ui-font-xs)] leading-6 text-[var(--color-text-secondary)]">
+            未检测到 {selectedShell.label}。新建会话会先回退到自动检测到的终端；{selectedShell.installHint ?? '请先安装后再使用。'}
+          </div>
+        )}
+      </SettingsSection>
+
+      <SettingsSection icon={Type} title="终端排版" description="统一终端的字号与字体，确保长时间阅读输出时依然紧凑、清晰。">
+        <FontSizeSlider label="字号" value={settings.terminalFontSize} min={10} max={24} onChange={(v) => onUpdate('terminalFontSize', v)} />
+        <FontSelect label="字体" value={settings.terminalFontFamily} options={TERMINAL_FONT_OPTIONS} labels={TERMINAL_FONT_LABELS} onChange={(v) => onUpdate('terminalFontFamily', v)} />
+        <div
+          className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[#1a1a1e] px-3 py-2"
+          style={{ fontSize: settings.terminalFontSize, fontFamily: settings.terminalFontFamily }}
+        >
+          <span style={{ color: '#3ecf7b' }}>$</span>
+          <span style={{ color: '#e8e8ec' }}> git status</span>
+          <br />
+          <span style={{ color: '#8e8e96' }}>当前分支为 main，输出内容在这里预览</span>
+        </div>
+      </SettingsSection>
     </div>
   )
 }

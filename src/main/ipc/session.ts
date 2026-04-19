@@ -5,11 +5,16 @@ import type { SessionCreateOptions } from '@shared/types'
 import { ptyManager } from '../services/PtyManager'
 import { activityMonitor } from '../services/ActivityMonitor'
 import { claudeGuiService } from '../services/ClaudeGuiService'
+import { listTerminalShellOptions } from '../services/ShellDetector'
 
 export function registerSessionHandlers(): void {
   ipcMain.handle(IPC.SESSION_CREATE, (_event, options: SessionCreateOptions) => {
     const result = ptyManager.create(options)
     return { ptyId: result.id, cwd: result.cwd }
+  })
+
+  ipcMain.handle(IPC.SESSION_LIST_TERMINAL_SHELLS, () => {
+    return listTerminalShellOptions()
   })
 
   ipcMain.handle(IPC.SESSION_WRITE, (_event, ptyId: string, data: string) => {

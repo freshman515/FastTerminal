@@ -91,6 +91,57 @@ function getResumePattern(type: SessionCreateOptions['type']): RegExp | null {
   return null
 }
 
+function quoteWindowsShellArg(value: string, syntax: 'cmd' | 'powershell' | 'posix'): string {
+  if (syntax === 'posix' || !/[\s"'&()^|<>;]/.test(value)) return value
+  if (syntax === 'powershell') return `'${value.replace(/'/g, "''")}'`
+  return `"${value.replace(/"/g, '""')}"`
+}
+
+function getPowerShellCwdTrackingScript(): string {
+  return [
+    '$global:__FastTerminalProfilePaths = @($PROFILE.AllUsersAllHosts, $PROFILE.AllUsersCurrentHost, $PROFILE.CurrentUserAllHosts, $PROFILE.CurrentUserCurrentHost)',
+    'foreach ($global:__FastTerminalProfilePath in $global:__FastTerminalProfilePaths) {',
+    '  try {',
+    '    if ($global:__FastTerminalProfilePath -and (Test-Path -LiteralPath $global:__FastTerminalProfilePath)) {',
+    '      . $global:__FastTerminalProfilePath',
+    '    }',
+    '  } catch {',
+    '    Write-Warning $_',
+    '  }',
+    '}',
+    'Remove-Variable __FastTerminalProfilePath -Scope Global -ErrorAction SilentlyContinue',
+    'Remove-Variable __FastTerminalProfilePaths -Scope Global -ErrorAction SilentlyContinue',
+    '$global:__FastTerminalLastCwd = $null',
+    'function global:__FastTerminalEmitCwd {',
+    '  try {',
+    '    $location = $ExecutionContext.SessionState.Path.CurrentFileSystemLocation',
+    '    if (-not $location) { return }',
+    '    $path = $location.ProviderPath',
+    '    if ($global:__FastTerminalLastCwd -eq $path) { return }',
+    '    $global:__FastTerminalLastCwd = $path',
+    '    $uri = [System.Uri]::new($path).AbsoluteUri',
+    '    [Console]::Write("$([char]27)]7;$uri$([char]7)")',
+    '  } catch {}',
+    '}',
+    'try { Unregister-Event -SourceIdentifier "FastTerminal.Cwd" -ErrorAction SilentlyContinue } catch {}',
+    '$global:__FastTerminalCwdTimer = [System.Timers.Timer]::new(250)',
+    '$global:__FastTerminalCwdTimer.AutoReset = $true',
+    '$global:__FastTerminalCwdEvent = Register-ObjectEvent -InputObject $global:__FastTerminalCwdTimer -EventName Elapsed -SourceIdentifier "FastTerminal.Cwd" -Action {',
+    '  try {',
+    '    $location = $ExecutionContext.SessionState.Path.CurrentFileSystemLocation',
+    '    if (-not $location) { return }',
+    '    $path = $location.ProviderPath',
+    '    if ($global:__FastTerminalLastCwd -eq $path) { return }',
+    '    $global:__FastTerminalLastCwd = $path',
+    '    $uri = [System.Uri]::new($path).AbsoluteUri',
+    '    [Console]::Write("$([char]27)]7;$uri$([char]7)")',
+    '  } catch {}',
+    '}',
+    '$global:__FastTerminalCwdTimer.Start()',
+    '__FastTerminalEmitCwd',
+  ].join('; ')
+}
+
 interface McpBridgeEnv {
   port: number
   token: string
@@ -142,13 +193,16 @@ export class PtyManager {
 
   create(options: SessionCreateOptions): { id: string; cwd: string } {
     const id = `pty-${++this.idCounter}-${Date.now()}`
-    const shell = detectShell()
+    const shell = detectShell(options.terminalShell ?? 'auto')
 
     let shellPath = shell.shell
     let shellArgs: string[] = [...shell.args]
 
     // For agent sessions, wrap the agent command
     const agentCmd = buildAgentCommand(options.type, options.sessionId, options.resume, options.resumeUUID)
+    if (!agentCmd && isWindows && options.type === 'terminal' && shell.syntax === 'powershell') {
+      shellArgs = [...shellArgs, '-NoProfile', '-NoExit', '-Command', getPowerShellCwdTrackingScript()]
+    }
 
     // For Claude Code sessions, append --mcp-config pointing to a per-session
     // JSON that carries the live orchestrator port/token. This is what gives
@@ -280,6 +334,13 @@ export class PtyManager {
       this.notifyDataObservers(id)
     }
 
+    if (shell.warning) {
+      setTimeout(() => {
+        if (!this.ptys.has(id)) return
+        emitVisibleData(`\x1b[33m[FastTerminal] ${shell.warning}\x1b[0m\r\n`)
+      }, 50)
+    }
+
     const startForwardingAgentOutput = (): void => {
       if (agentStarted) return
       agentStarted = true
@@ -337,12 +398,14 @@ export class PtyManager {
       }
     })
 
-    // For agent sessions on Windows, send the command after shell is ready
-    // Append "; exit" so shell exits when agent exits → triggers PTY exit event
+    // For agent sessions on Windows, send the command after shell is ready.
+    // Exit the wrapper shell after the agent exits so PTY exit events fire.
     if (agentCmd && isWindows) {
       setTimeout(() => {
-        const parts = [agentCmd.command, ...agentCmd.args]
-        const suffix = options.type !== 'terminal' ? ' ; exit' : ''
+        const parts = [agentCmd.command, ...agentCmd.args].map((part) => quoteWindowsShellArg(part, shell.syntax))
+        const suffix = options.type !== 'terminal'
+          ? (shell.syntax === 'cmd' ? ' & exit' : ' ; exit')
+          : ''
         ptyProcess.write(parts.join(' ') + suffix + '\r')
       }, 500)
     }

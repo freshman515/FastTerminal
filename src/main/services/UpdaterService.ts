@@ -16,6 +16,9 @@ import { IPC, type UpdaterEvent } from '@shared/types'
 export class UpdaterService {
   private initialized = false
   private lastInfo: UpdateInfo | null = null
+  private startupCheckStartedAt = 0
+  private startupMissingMetadataHandled = false
+  private lastErrorBroadcast: { message: string; at: number } | null = null
 
   init(): void {
     if (this.initialized) return
@@ -59,22 +62,29 @@ export class UpdaterService {
     })
 
     autoUpdater.on('error', (err) => {
-      this.broadcast({ type: 'error', error: err?.message ?? String(err) })
+      this.handleError(err)
     })
   }
 
   /** Trigger a remote check. Safe to call multiple times. */
-  async checkNow(): Promise<void> {
+  async checkNow(options: { silentMissingMetadata?: boolean } = {}): Promise<void> {
     // `electron-updater` refuses to run in a non-packaged app; short-circuit
     // with a synthetic "not-available" so the dev UI stays quiet.
     if (!app.isPackaged) {
       this.broadcast({ type: 'not-available', currentVersion: app.getVersion(), latestVersion: app.getVersion(), dev: true })
       return
     }
+    if (options.silentMissingMetadata) {
+      this.startupCheckStartedAt = Date.now()
+      this.startupMissingMetadataHandled = false
+    } else {
+      this.startupCheckStartedAt = 0
+      this.startupMissingMetadataHandled = false
+    }
     try {
       await autoUpdater.checkForUpdates()
     } catch (err) {
-      this.broadcast({ type: 'error', error: err instanceof Error ? err.message : String(err) })
+      this.handleError(err)
     }
   }
 
@@ -83,7 +93,7 @@ export class UpdaterService {
     try {
       await autoUpdater.downloadUpdate()
     } catch (err) {
-      this.broadcast({ type: 'error', error: err instanceof Error ? err.message : String(err) })
+      this.handleError(err)
     }
   }
 
@@ -101,6 +111,39 @@ export class UpdaterService {
       }
     }
   }
+
+  private handleError(err: unknown): void {
+    const normalized = normalizeUpdaterError(err)
+    if (normalized.kind === 'missing-release-metadata' && this.shouldSilenceMissingMetadata()) {
+      if (!this.startupMissingMetadataHandled) {
+        this.startupMissingMetadataHandled = true
+        console.warn('[updater] release metadata latest.yml is missing; startup auto-check skipped.')
+        this.broadcast({
+          type: 'not-available',
+          currentVersion: app.getVersion(),
+          latestVersion: app.getVersion(),
+        })
+      }
+      return
+    }
+
+    this.broadcastError(normalized.message)
+  }
+
+  private shouldSilenceMissingMetadata(): boolean {
+    if (this.startupCheckStartedAt <= 0) return false
+    return Date.now() - this.startupCheckStartedAt < 15_000
+  }
+
+  private broadcastError(message: string): void {
+    const now = Date.now()
+    if (this.lastErrorBroadcast && this.lastErrorBroadcast.message === message && now - this.lastErrorBroadcast.at < 1000) {
+      return
+    }
+
+    this.lastErrorBroadcast = { message, at: now }
+    this.broadcast({ type: 'error', error: message })
+  }
 }
 
 function normalizeReleaseNotes(raw: UpdateInfo['releaseNotes']): string | null {
@@ -110,6 +153,23 @@ function normalizeReleaseNotes(raw: UpdateInfo['releaseNotes']): string | null {
     return raw.map((item) => (typeof item === 'string' ? item : item?.note ?? '')).filter(Boolean).join('\n\n')
   }
   return null
+}
+
+function normalizeUpdaterError(err: unknown): { kind: 'missing-release-metadata' | 'generic'; message: string } {
+  const message = err instanceof Error ? err.message : String(err)
+
+  if (isMissingReleaseMetadataError(message)) {
+    return {
+      kind: 'missing-release-metadata',
+      message: 'GitHub Release 缺少 latest.yml 更新清单，自动更新暂不可用。请确认发布时同时上传 latest.yml、安装包和 blockmap 文件。',
+    }
+  }
+
+  return { kind: 'generic', message }
+}
+
+function isMissingReleaseMetadataError(message: string): boolean {
+  return /latest\.yml/i.test(message) && (/\b404\b/.test(message) || /cannot find/i.test(message) || /not found/i.test(message))
 }
 
 export const updaterService = new UpdaterService()

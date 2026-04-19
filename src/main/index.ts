@@ -84,9 +84,10 @@ app.whenReady().then(async () => {
   mediaMonitor.start()
 
   // Auto-updater: register listeners first, then check after a short delay
-  // so the renderer has time to mount its dialog listener.
+  // so the renderer has time to mount its dialog listener. Missing release
+  // metadata is ignored during startup; manual checks still surface it.
   updaterService.init()
-  setTimeout(() => { void updaterService.checkNow() }, 3000)
+  setTimeout(() => { void updaterService.checkNow({ silentMissingMetadata: true }) }, 3000)
 
   // ─── Detached window IPC ───
   // Store live tab snapshots for detached windows to fetch and hand back on close

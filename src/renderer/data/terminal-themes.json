@@ -27,7 +27,7 @@
         "selectionBackground": "#ACB0BE",
         "selectionForeground": "#4C4F69",
         "ui": {
-            "titleBarBg": "#E6E9EF",
+            "titleBarBg": "#d2d4d8",
             "panelBg": "#EEF0F5",
             "contentBg": "#EFF1F5",
             "textPrimary": "#4C4F69",
@@ -70,7 +70,7 @@
         "selectionBackground": "#44475A",
         "selectionForeground": "#F8F8F2",
         "ui": {
-            "titleBarBg": "#1E1F29",
+            "titleBarBg": "#3c3e4a",
             "panelBg": "#21222C",
             "contentBg": "#282A36",
             "textPrimary": "#F8F8F2",
@@ -113,7 +113,7 @@
         "selectionBackground": "#264F78",
         "selectionForeground": "#C9D1D9",
         "ui": {
-            "titleBarBg": "#010409",
+            "titleBarBg": "#21252b",
             "panelBg": "#0D1117",
             "contentBg": "#161B22",
             "textPrimary": "#C9D1D9",
@@ -156,7 +156,7 @@
         "selectionBackground": "#B6E3FF",
         "selectionForeground": "#24292F",
         "ui": {
-            "titleBarBg": "#EAEEF2",
+            "titleBarBg": "#e0e0e0",
             "panelBg": "#F6F8FA",
             "contentBg": "#FFFFFF",
             "textPrimary": "#24292F",
@@ -199,7 +199,7 @@
         "selectionBackground": "#504945",
         "selectionForeground": "#EBDBB2",
         "ui": {
-            "titleBarBg": "#1D2021",
+            "titleBarBg": "#3c3c3c",
             "panelBg": "#32302F",
             "contentBg": "#282828",
             "textPrimary": "#EBDBB2",
@@ -242,7 +242,7 @@
         "selectionBackground": "#EBDBB2",
         "selectionForeground": "#3C3836",
         "ui": {
-            "titleBarBg": "#F2E5BC",
+            "titleBarBg": "#ddd4af",
             "panelBg": "#F9F5D7",
             "contentBg": "#FBF1C7",
             "textPrimary": "#3C3836",
@@ -285,7 +285,7 @@
         "selectionBackground": "#434C5E",
         "selectionForeground": "#ECEFF4",
         "ui": {
-            "titleBarBg": "#242933",
+            "titleBarBg": "#424854",
             "panelBg": "#2E3440",
             "contentBg": "#2E3440",
             "textPrimary": "#ECEFF4",
@@ -328,7 +328,7 @@
         "selectionBackground": "#3E4451",
         "selectionForeground": "#ABB2BF",
         "ui": {
-            "titleBarBg": "#1F2229",
+            "titleBarBg": "#3c4048",
             "panelBg": "#21252B",
             "contentBg": "#282C34",
             "textPrimary": "#ABB2BF",
@@ -371,7 +371,7 @@
         "selectionBackground": "#E5E5E6",
         "selectionForeground": "#383A42",
         "ui": {
-            "titleBarBg": "#EAEAEB",
+            "titleBarBg": "#dcdcdc",
             "panelBg": "#F0F0F1",
             "contentBg": "#FAFAFA",
             "textPrimary": "#383A42",
@@ -414,7 +414,7 @@
         "selectionBackground": "#073642",
         "selectionForeground": "#93A1A1",
         "ui": {
-            "titleBarBg": "#001E26",
+            "titleBarBg": "#143f4a",
             "panelBg": "#00252F",
             "contentBg": "#002B36",
             "textPrimary": "#EEE8D5",
@@ -457,7 +457,7 @@
         "selectionBackground": "#EEE8D5",
         "selectionForeground": "#586E75",
         "ui": {
-            "titleBarBg": "#EEE8D5",
+            "titleBarBg": "#dfd8c8",
             "panelBg": "#F5EFDC",
             "contentBg": "#FDF6E3",
             "textPrimary": "#073642",
@@ -500,7 +500,7 @@
         "selectionBackground": "#33467C",
         "selectionForeground": "#C0CAF5",
         "ui": {
-            "titleBarBg": "#16161E",
+            "titleBarBg": "#2e2f3a",
             "panelBg": "#1F2335",
             "contentBg": "#1A1B26",
             "textPrimary": "#C0CAF5",
@@ -543,7 +543,7 @@
         "selectionBackground": "#B7C1E3",
         "selectionForeground": "#343B58",
         "ui": {
-            "titleBarBg": "#C4C8DA",
+            "titleBarBg": "#bbbcc1",
             "panelBg": "#CBCCD1",
             "contentBg": "#D5D6DB",
             "textPrimary": "#343B58",
@@ -586,7 +586,7 @@
         "selectionBackground": "#273747",
         "selectionForeground": "#BFBDB6",
         "ui": {
-            "titleBarBg": "#070A0F",
+            "titleBarBg": "#1f2228",
             "panelBg": "#0D1017",
             "contentBg": "#0B0E14",
             "textPrimary": "#BFBDB6",
@@ -629,7 +629,7 @@
         "selectionBackground": "#F0EEE4",
         "selectionForeground": "#5C6166",
         "ui": {
-            "titleBarBg": "#EEEEEC",
+            "titleBarBg": "#dedede",
             "panelBg": "#F5F5F2",
             "contentBg": "#FCFCFC",
             "textPrimary": "#5C6166",
@@ -672,7 +672,7 @@
         "selectionBackground": "#343F4C",
         "selectionForeground": "#CBCCC6",
         "ui": {
-            "titleBarBg": "#171B24",
+            "titleBarBg": "#333844",
             "panelBg": "#232834",
             "contentBg": "#1F2430",
             "textPrimary": "#CBCCC6",
@@ -715,7 +715,7 @@
         "selectionBackground": "#626880",
         "selectionForeground": "#C6D0F5",
         "ui": {
-            "titleBarBg": "#232634",
+            "titleBarBg": "#44485a",
             "panelBg": "#292C3C",
             "contentBg": "#303446",
             "textPrimary": "#C6D0F5",
@@ -758,7 +758,7 @@
         "selectionBackground": "#5B6078",
         "selectionForeground": "#CAD3F5",
         "ui": {
-            "titleBarBg": "#181926",
+            "titleBarBg": "#383b4e",
             "panelBg": "#1E2030",
             "contentBg": "#24273A",
             "textPrimary": "#CAD3F5",
@@ -801,7 +801,7 @@
         "selectionBackground": "#503946",
         "selectionForeground": "#D3C6AA",
         "ui": {
-            "titleBarBg": "#232A2E",
+            "titleBarBg": "#41494f",
             "panelBg": "#272E33",
             "contentBg": "#2D353B",
             "textPrimary": "#D3C6AA",
@@ -844,7 +844,7 @@
         "selectionBackground": "#EAE4CA",
         "selectionForeground": "#5C6A72",
         "ui": {
-            "titleBarBg": "#EFEBD4",
+            "titleBarBg": "#dfd8c8",
             "panelBg": "#F4F0D9",
             "contentBg": "#FDF6E3",
             "textPrimary": "#5C6A72",
@@ -887,7 +887,7 @@
         "selectionBackground": "#2D4F67",
         "selectionForeground": "#DCD7BA",
         "ui": {
-            "titleBarBg": "#16161D",
+            "titleBarBg": "#33333c",
             "panelBg": "#1A1A22",
             "contentBg": "#1F1F28",
             "textPrimary": "#DCD7BA",
@@ -930,7 +930,7 @@
         "selectionBackground": "#404040",
         "selectionForeground": "#EEFFFF",
         "ui": {
-            "titleBarBg": "#1A1A1A",
+            "titleBarBg": "#353535",
             "panelBg": "#1C1C1C",
             "contentBg": "#212121",
             "textPrimary": "#EEFFFF",
@@ -973,7 +973,7 @@
         "selectionBackground": "#49483E",
         "selectionForeground": "#F8F8F2",
         "ui": {
-            "titleBarBg": "#1E1F1A",
+            "titleBarBg": "#3b3c36",
             "panelBg": "#232420",
             "contentBg": "#272822",
             "textPrimary": "#F8F8F2",
@@ -1016,7 +1016,7 @@
         "selectionBackground": "#1D3B53",
         "selectionForeground": "#D6DEEB",
         "ui": {
-            "titleBarBg": "#010D1A",
+            "titleBarBg": "#152a3b",
             "panelBg": "#011020",
             "contentBg": "#011627",
             "textPrimary": "#D6DEEB",
@@ -1059,7 +1059,7 @@
         "selectionBackground": "#3A3F58",
         "selectionForeground": "#A6ACCD",
         "ui": {
-            "titleBarBg": "#1F2233",
+            "titleBarBg": "#3d4152",
             "panelBg": "#242837",
             "contentBg": "#292D3E",
             "textPrimary": "#A6ACCD",
@@ -1102,7 +1102,7 @@
         "selectionBackground": "#403D52",
         "selectionForeground": "#E0DEF4",
         "ui": {
-            "titleBarBg": "#14121E",
+            "titleBarBg": "#2d2b38",
             "panelBg": "#1F1D2E",
             "contentBg": "#191724",
             "textPrimary": "#E0DEF4",
@@ -1145,7 +1145,7 @@
         "selectionBackground": "#DFDAD9",
         "selectionForeground": "#575279",
         "ui": {
-            "titleBarBg": "#F2E9DE",
+            "titleBarBg": "#dcd7d1",
             "panelBg": "#F8EFE5",
             "contentBg": "#FAF4ED",
             "textPrimary": "#575279",
@@ -1188,7 +1188,7 @@
         "selectionBackground": "#463465",
         "selectionForeground": "#FFFFFF",
         "ui": {
-            "titleBarBg": "#1A1727",
+            "titleBarBg": "#3a3749",
             "panelBg": "#241B2F",
             "contentBg": "#262335",
             "textPrimary": "#F4F4F4",
@@ -1231,7 +1231,7 @@
         "selectionBackground": "#585B70",
         "selectionForeground": "#CDD6F4",
         "ui": {
-            "titleBarBg": "#141418",
+            "titleBarBg": "#343438",
             "panelBg": "#1a1a1e",
             "contentBg": "#202024",
             "textPrimary": "#CDD6F4",
@@ -1273,7 +1273,7 @@
         "selectionBackground": "#7c6aef40",
         "selectionForeground": "#ffffff",
         "ui": {
-            "titleBarBg": "#111114",
+            "titleBarBg": "#2e2e32",
             "panelBg": "#16161a",
             "contentBg": "#1a1a1e",
             "textPrimary": "#e8e8ec",
@@ -1315,7 +1315,7 @@
         "selectionBackground": "#5a4ad440",
         "selectionForeground": "#1e1e2e",
         "ui": {
-            "titleBarBg": "#dde3ee",
+            "titleBarBg": "#dadcde",
             "panelBg": "#e8edf6",
             "contentBg": "#f8fafc",
             "textPrimary": "#1e1e2e",

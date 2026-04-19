@@ -1,4 +1,4 @@
-import { Bot, ChevronLeft, ChevronRight, GitBranch, Loader2, Play, RefreshCw, Target, X, Zap } from 'lucide-react'
+import { Bot, ChevronRight, GitBranch, Loader2, Play, RefreshCw, Target, X, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SessionType } from '@shared/types'
 import { cn } from '@/lib/utils'
@@ -318,7 +318,6 @@ function WorkerCard({ worker }: { worker: AgentWorker }): JSX.Element {
 
 export function AgentOrchestratorPanel(): JSX.Element {
   const panelOpen = useOrchestratorStore((state) => state.panelOpen)
-  const openPanel = useOrchestratorStore((state) => state.openPanel)
   const closePanel = useOrchestratorStore((state) => state.closePanel)
   const createRun = useOrchestratorStore((state) => state.createRun)
   const createWorker = useOrchestratorStore((state) => state.createWorker)
@@ -442,16 +441,7 @@ export function AgentOrchestratorPanel(): JSX.Element {
   }, [activeSession?.cwd, activeSession?.projectId, addToast, attachWorkerSession, createRun, createWorker, objective, selectedProject?.path, selectedProjectId, updateWorker])
 
   if (!panelOpen) {
-    return (
-      <button
-        type="button"
-        onClick={openPanel}
-        className="absolute right-2 top-1/2 z-40 flex -translate-y-1/2 items-center gap-1 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg-secondary)] px-2 py-2 text-[11px] text-[var(--color-text-secondary)] shadow-lg shadow-black/30 hover:border-[var(--color-border-hover)] hover:bg-[var(--color-bg-tertiary)]"
-        title="Open agent orchestrator"
-      >
-        <ChevronLeft size={13} />
-      </button>
-    )
+    return null
   }
 
   return (

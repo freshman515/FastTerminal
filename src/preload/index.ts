@@ -29,6 +29,8 @@ import type {
   SessionDataEvent,
   SessionExitEvent,
   SessionReplayPayload,
+  TerminalShellId,
+  TerminalShellOption,
 } from '@shared/types'
 
 interface OpencodeRequest {
@@ -61,10 +63,13 @@ const api = {
 
   shell: {
     openPath: (path: string) => ipcRenderer.invoke(IPC.SHELL_OPEN_PATH, path),
+    openExternal: (url: string) => ipcRenderer.invoke(IPC.SHELL_OPEN_EXTERNAL, url),
     openInIde: (ide: ExternalIdeId, path: string) =>
       ipcRenderer.invoke(IPC.SHELL_OPEN_IN_IDE, ide, path) as Promise<OpenIdeResult>,
     listIdes: () =>
       ipcRenderer.invoke(IPC.SHELL_LIST_IDES) as Promise<ExternalIdeOption[]>,
+    openAdminTerminal: (path: string, shellId: TerminalShellId) =>
+      ipcRenderer.invoke(IPC.SHELL_OPEN_ADMIN_TERMINAL, path, shellId) as Promise<{ ok: boolean; error?: string }>,
     getBranch: (cwd: string) =>
       ipcRenderer.invoke('shell:get-branch', cwd) as Promise<string | null>,
   },
@@ -72,6 +77,8 @@ const api = {
   session: {
     create: (options: SessionCreateOptions) =>
       ipcRenderer.invoke(IPC.SESSION_CREATE, options) as Promise<SessionCreateResult>,
+    listTerminalShells: () =>
+      ipcRenderer.invoke(IPC.SESSION_LIST_TERMINAL_SHELLS) as Promise<TerminalShellOption[]>,
     write: (ptyId: string, data: string) => ipcRenderer.invoke(IPC.SESSION_WRITE, ptyId, data),
     resize: (ptyId: string, cols: number, rows: number) =>
       ipcRenderer.invoke(IPC.SESSION_RESIZE, ptyId, cols, rows),

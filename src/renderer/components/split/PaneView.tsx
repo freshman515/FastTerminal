@@ -13,7 +13,7 @@ import {
   SquareSplitVertical,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import {
@@ -113,17 +113,79 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
   const paneRootRef = useRef<HTMLDivElement>(null)
   const termAreaRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
+  const hoverOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const layoutBtnRef = useRef<HTMLButtonElement>(null)
   const windowDragRef = useRef<WindowDragState | null>(null)
   const currentWindowId = isDetached ? window.api.detach.getWindowId() : 'main'
 
-  const handlePlusClick = (): void => {
+  const clearHoverOpenTimer = useCallback(() => {
+    if (hoverOpenTimerRef.current === null) return
+    clearTimeout(hoverOpenTimerRef.current)
+    hoverOpenTimerRef.current = null
+  }, [])
+
+  const clearHoverCloseTimer = useCallback(() => {
+    if (hoverCloseTimerRef.current === null) return
+    clearTimeout(hoverCloseTimerRef.current)
+    hoverCloseTimerRef.current = null
+  }, [])
+
+  const updateNewMenuPosition = useCallback(() => {
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
       setMenuPos({ top: rect.bottom + 4, left: rect.left })
     }
+  }, [])
+
+  const openNewMenu = useCallback(() => {
+    clearHoverCloseTimer()
+    updateNewMenuPosition()
+    setShowNewMenu(true)
+  }, [clearHoverCloseTimer, updateNewMenuPosition])
+
+  const closeNewMenu = useCallback(() => {
+    clearHoverOpenTimer()
+    clearHoverCloseTimer()
+    setShowNewMenu(false)
+  }, [clearHoverCloseTimer, clearHoverOpenTimer])
+
+  const scheduleNewMenuClose = useCallback(() => {
+    clearHoverOpenTimer()
+    clearHoverCloseTimer()
+    hoverCloseTimerRef.current = setTimeout(() => {
+      hoverCloseTimerRef.current = null
+      setShowNewMenu(false)
+    }, 150)
+  }, [clearHoverCloseTimer, clearHoverOpenTimer])
+
+  const handlePlusClick = useCallback((): void => {
+    clearHoverOpenTimer()
+    clearHoverCloseTimer()
+    updateNewMenuPosition()
     setShowNewMenu(!showNewMenu)
-  }
+  }, [clearHoverCloseTimer, clearHoverOpenTimer, showNewMenu, updateNewMenuPosition])
+
+  const handlePlusMouseEnter = useCallback(() => {
+    clearHoverCloseTimer()
+    clearHoverOpenTimer()
+    hoverOpenTimerRef.current = setTimeout(() => {
+      hoverOpenTimerRef.current = null
+      openNewMenu()
+    }, 500)
+  }, [clearHoverCloseTimer, clearHoverOpenTimer, openNewMenu])
+
+  const handleEmptyStateIconClick = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+    clearHoverOpenTimer()
+    clearHoverCloseTimer()
+    const rect = event.currentTarget.getBoundingClientRect()
+    const menuLeft = rect.left + rect.width / 2 - 96
+    setMenuPos({
+      top: rect.bottom + 8,
+      left: Math.max(8, Math.min(menuLeft, window.innerWidth - 200)),
+    })
+    setShowNewMenu((value) => !value)
+  }, [clearHoverCloseTimer, clearHoverOpenTimer])
 
   const handleLayoutMenuClick = (): void => {
     if (layoutBtnRef.current) {
@@ -133,7 +195,7 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
         left: Math.max(8, Math.min(rect.left, window.innerWidth - 280)),
       })
     }
-    setShowNewMenu(false)
+    closeNewMenu()
     setShowLayoutMenu((value) => !value)
   }
 
@@ -334,6 +396,12 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
   }, [paneId])
 
   useEffect(() => () => stopWindowDrag(), [stopWindowDrag])
+  useEffect(() => {
+    return () => {
+      clearHoverOpenTimer()
+      clearHoverCloseTimer()
+    }
+  }, [clearHoverCloseTimer, clearHoverOpenTimer])
 
   return (
     <div
@@ -370,10 +438,7 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
         onDrop={handleTabRowDrop}
       >
         <div
-          className={cn(
-            'tab-strip-drop-zone flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto px-2 pt-1 scrollbar-none',
-            !isDetached && 'drag-region',
-          )}
+          className="tab-strip-drop-zone flex min-w-0 flex-shrink items-end gap-0.5 overflow-x-auto px-2 pt-1 scrollbar-none no-drag"
           style={{ position: 'relative', zIndex: 1 }}
           onMouseDown={handleTopBarBlankMouseDown}
           onDoubleClick={handleTopBarBlankDoubleClick}
@@ -411,16 +476,26 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
           <button
             ref={btnRef}
             onClick={handlePlusClick}
+            onMouseEnter={handlePlusMouseEnter}
+            onMouseLeave={scheduleNewMenuClose}
             className={cn(
               'no-drag flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[var(--radius-sm)]',
               'text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-secondary)]',
               'transition-colors duration-100',
             )}
-            title="New Session"
           >
             <Plus size={14} />
           </button>
         </div>
+
+        {/* Blank filler — actual window drag region (no overflow, so drag works). */}
+        <div
+          className={cn('flex-1 self-stretch min-w-[40px]', !isDetached && 'drag-region')}
+          onMouseDown={handleTopBarBlankMouseDown}
+          onDoubleClick={handleTopBarBlankDoubleClick}
+          onDragOver={handleTabRowDragOver}
+          onDrop={handleTabRowDrop}
+        />
 
         <div className="no-drag flex shrink-0 items-center self-stretch border-l border-[var(--color-border)] px-1">
           <button
@@ -484,7 +559,9 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
           <NewSessionMenu
             projectId="default"
             paneId={paneId}
-            onClose={() => setShowNewMenu(false)}
+            onClose={closeNewMenu}
+            onMouseEnter={clearHoverCloseTimer}
+            onMouseLeave={scheduleNewMenuClose}
             position={menuPos}
           />
         )}
@@ -706,6 +783,7 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
             <EmptyState
               title="Empty pane"
               description="Create a session or drag a tab here."
+              onIconClick={handleEmptyStateIconClick}
             />
           </div>
         )}

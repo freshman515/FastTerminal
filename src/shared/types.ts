@@ -60,6 +60,7 @@ export interface SessionCreateOptions {
   sessionId?: string   // unique session id for agent resume
   resume?: boolean     // true = resume previous session
   resumeUUID?: string  // session id / UUID from agent resume output
+  terminalShell?: TerminalShellId
   command?: string
   args?: string[]
   cols?: number
@@ -86,6 +87,17 @@ export interface SessionExitEvent {
 export interface SessionReplayPayload {
   data: string
   seq: number
+}
+
+export type TerminalShellId = 'auto' | 'pwsh' | 'powershell' | 'cmd'
+
+export interface TerminalShellOption {
+  id: TerminalShellId
+  label: string
+  description: string
+  available: boolean
+  path?: string
+  installHint?: string
 }
 
 export type ClaudeGuiComputeMode = 'auto' | 'max'
@@ -368,7 +380,22 @@ export interface GitWorktreeInfo {
   isMain: boolean
 }
 
-export type ExternalIdeId = 'cursor' | 'vscode' | 'trae' | 'rider'
+export type ExternalIdeId =
+  | 'vscode'
+  | 'vscode-insiders'
+  | 'cursor'
+  | 'trae'
+  | 'windsurf'
+  | 'visual-studio'
+  | 'rider'
+  | 'webstorm'
+  | 'intellij'
+  | 'pycharm'
+  | 'goland'
+  | 'clion'
+  | 'phpstorm'
+  | 'rubymine'
+  | 'android-studio'
 
 export interface ExternalIdeOption {
   id: ExternalIdeId
@@ -406,9 +433,20 @@ export interface FileSearchResult {
 
 export const EXTERNAL_IDE_OPTIONS: ExternalIdeOption[] = [
   { id: 'vscode', label: 'VS Code' },
+  { id: 'vscode-insiders', label: 'VS Code Insiders' },
   { id: 'cursor', label: 'Cursor' },
   { id: 'trae', label: 'Trae' },
+  { id: 'windsurf', label: 'Windsurf' },
+  { id: 'visual-studio', label: 'Visual Studio' },
   { id: 'rider', label: 'Rider' },
+  { id: 'webstorm', label: 'WebStorm' },
+  { id: 'intellij', label: 'IntelliJ IDEA' },
+  { id: 'pycharm', label: 'PyCharm' },
+  { id: 'goland', label: 'GoLand' },
+  { id: 'clion', label: 'CLion' },
+  { id: 'phpstorm', label: 'PhpStorm' },
+  { id: 'rubymine', label: 'RubyMine' },
+  { id: 'android-studio', label: 'Android Studio' },
 ]
 
 // ─── Session Template Types ───
@@ -488,6 +526,7 @@ export const IPC = {
   SESSION_ACTIVITY: 'session:activity',
   SESSION_EXPORT: 'session:export',
   SESSION_REPLAY: 'session:replay',
+  SESSION_LIST_TERMINAL_SHELLS: 'session:list-terminal-shells',
   SESSION_DATA: 'session:data',
   SESSION_EXIT: 'session:exit',
   SESSION_GRACEFUL_SHUTDOWN: 'session:graceful-shutdown',
@@ -510,8 +549,10 @@ export const IPC = {
 
   DIALOG_SELECT_FOLDER: 'dialog:select-folder',
   SHELL_OPEN_PATH: 'shell:open-path',
+  SHELL_OPEN_EXTERNAL: 'shell:open-external',
   SHELL_OPEN_IN_IDE: 'shell:open-in-ide',
   SHELL_LIST_IDES: 'shell:list-ides',
+  SHELL_OPEN_ADMIN_TERMINAL: 'shell:open-admin-terminal',
 
   CLAUDE_GUI_START: 'claude-gui:start',
   CLAUDE_GUI_STOP: 'claude-gui:stop',

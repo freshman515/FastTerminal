@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Terminal, type IBufferLine } from '@xterm/xterm'
+import { Terminal, type IBufferLine, type ILink, type ILinkProvider } from '@xterm/xterm'
 import { addTimelineEvent } from '@/components/rightpanel/SessionTimeline'
 import { trackSessionInput, trackSessionOutput } from '@/components/rightpanel/agentRuntime'
 
@@ -23,6 +23,68 @@ export function getTerminalPreviewText(sessionId: string, lineCount = 16): strin
 export function getTerminalBufferText(sessionId: string, lineCount = 120): string {
   return getTerminalPreviewText(sessionId, lineCount).join('\n')
 }
+
+const OSC7_CWD_PATTERN = /\x1b\]7;([^\x07\x1b]+)(?:\x07|\x1b\\)/g
+
+function resolveAbsolutePath(p: string, cwd: string): string {
+  if (/^[A-Za-z]:[\\/]/.test(p)) return p
+  if (p.startsWith('/') || p.startsWith('\\')) return p
+  if (p.startsWith('~/') || p.startsWith('~\\')) return p
+  if (!cwd) return p
+  const sep = cwd.includes('\\') ? '\\' : '/'
+  const cleaned = p.replace(/^\.[\\/]/, '')
+  const normalized = sep === '\\' ? cleaned.replace(/\//g, '\\') : cleaned.replace(/\\/g, '/')
+  const base = cwd.endsWith(sep) ? cwd : cwd + sep
+  return base + normalized
+}
+
+function quoteDroppedPath(p: string): string {
+  if (/[\s"]/.test(p)) return `"${p.replace(/"/g, '\\"')}"`
+  return p
+}
+
+function decodeFileCwdUri(uri: string): string | null {
+  try {
+    const url = new URL(uri)
+    if (url.protocol !== 'file:') return null
+
+    let pathname = decodeURIComponent(url.pathname)
+    if (window.api.platform === 'win32') {
+      if (url.hostname && url.hostname !== 'localhost') {
+        return `\\\\${url.hostname}${pathname.replace(/\//g, '\\')}`
+      }
+      if (/^\/[A-Za-z]:/.test(pathname)) {
+        pathname = pathname.slice(1)
+      }
+      return pathname.replace(/\//g, '\\')
+    }
+
+    return pathname
+  } catch {
+    return null
+  }
+}
+
+function extractLatestCwdFromOsc7(data: string, pending: string): { cwd: string | null; pending: string } {
+  const combined = pending + data
+  let cwd: string | null = null
+  OSC7_CWD_PATTERN.lastIndex = 0
+
+  let match: RegExpExecArray | null
+  while ((match = OSC7_CWD_PATTERN.exec(combined)) !== null) {
+    cwd = decodeFileCwdUri(match[1]) ?? cwd
+  }
+
+  const lastStart = combined.lastIndexOf('\x1b]7;')
+  if (lastStart === -1) return { cwd, pending: '' }
+
+  const belEnd = combined.indexOf('\x07', lastStart)
+  const stEnd = combined.indexOf('\x1b\\', lastStart)
+  const hasTerminator = belEnd !== -1 || stEnd !== -1
+  if (hasTerminator) return { cwd, pending: '' }
+
+  return { cwd, pending: combined.slice(lastStart, lastStart + 2048) }
+}
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
@@ -38,7 +100,11 @@ import { getXtermTheme, defaultDarkTheme } from '@/lib/ghosttyTheme'
 export function useXterm(
   session: Session,
   isActive: boolean,
-): { containerRef: React.RefObject<HTMLDivElement | null>; searchAddonRef: React.RefObject<SearchAddon | null> } {
+): {
+  containerRef: React.RefObject<HTMLDivElement | null>
+  searchAddonRef: React.RefObject<SearchAddon | null>
+  terminalRef: React.RefObject<Terminal | null>
+} {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -107,6 +173,118 @@ export function useXterm(
     terminal.open(container)
     terminalRegistry.set(sessionId, terminal)
 
+    // URL + file-path link provider — Ctrl/Cmd+Click to open (Windows Terminal style)
+    const linkProvider: ILinkProvider = {
+      provideLinks(y, callback) {
+        const line = terminal.buffer.active.getLine(y - 1)
+        if (!line) { callback(undefined); return }
+        const text = line.translateToString(true)
+        const links: ILink[] = []
+        const urlRanges: Array<[number, number]> = []
+
+        // URLs
+        const urlRe = /https?:\/\/[^\s<>()"'`\\]+/g
+        let m: RegExpExecArray | null
+        while ((m = urlRe.exec(text)) !== null) {
+          const stripped = m[0].replace(/[.,;:!?)\]}>'"`]+$/, '')
+          if (stripped.length === 0) continue
+          const start = m.index
+          const end = start + stripped.length
+          urlRanges.push([start, end])
+          links.push({
+            range: { start: { x: start + 1, y }, end: { x: end, y } },
+            text: stripped,
+            activate: (event) => {
+              if (event.ctrlKey || event.metaKey) {
+                void window.api.shell.openExternal(stripped)
+              }
+            },
+          })
+        }
+
+        // File paths with optional :line[:col] suffix
+        // Requires either an anchor prefix (drive / ./ / ~/ / absolute slash)
+        // OR at least two segments with a slash in between, to avoid false positives.
+        const pathRe = /((?:[A-Za-z]:[\\/]|\.{1,2}[\\/]|~[\\/]|\/)[\w.@+\-]+(?:[\\/][\w.@+\-]+)*|[\w.@+\-]+(?:[\\/][\w.@+\-]+)+)(?::\d+(?::\d+)?)?/g
+        while ((m = pathRe.exec(text)) !== null) {
+          const raw = m[0]
+          const start = m.index
+          const end = start + raw.length
+          // Skip overlap with any URL match
+          if (urlRanges.some(([us, ue]) => start < ue && end > us)) continue
+          const stripped = raw.replace(/[.,;:!?)\]}>'"`]+$/, '')
+          if (stripped.length === 0) continue
+          const trueEnd = start + stripped.length
+          const parsed = stripped.match(/^(.+?)(?::(\d+)(?::(\d+))?)?$/)
+          if (!parsed) continue
+          const rawPath = parsed[1]
+          const lineNo = parsed[2] ? Number.parseInt(parsed[2], 10) : undefined
+          const colNo = parsed[3] ? Number.parseInt(parsed[3], 10) : undefined
+          const hoverText = lineNo !== undefined
+            ? `${rawPath}:${lineNo}${colNo !== undefined ? `:${colNo}` : ''}`
+            : rawPath
+          links.push({
+            range: { start: { x: start + 1, y }, end: { x: trueEnd, y } },
+            text: hoverText,
+            activate: (event) => {
+              if (event.ctrlKey || event.metaKey) {
+                const cwd = sessionRef.current.cwd ?? ''
+                const absPath = resolveAbsolutePath(rawPath, cwd)
+                void window.api.shell.openPath(absPath)
+              }
+            },
+          })
+        }
+
+        callback(links.length > 0 ? links : undefined)
+      },
+    }
+    const linkProviderDisposable = terminal.registerLinkProvider(linkProvider)
+
+    // File drop → paste quoted absolute paths into terminal
+    const onDragOver = (e: DragEvent): void => {
+      if (!e.dataTransfer) return
+      if (!e.dataTransfer.types.includes('Files')) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+    }
+    const onDrop = (e: DragEvent): void => {
+      if (!e.dataTransfer) return
+      if (!e.dataTransfer.types.includes('Files')) return
+      e.preventDefault()
+      const files = Array.from(e.dataTransfer.files)
+      if (files.length === 0) return
+      const paths = files
+        .map((f) => ((f as File & { path?: string }).path ?? '').trim())
+        .filter(Boolean)
+        .map(quoteDroppedPath)
+      if (paths.length === 0) return
+      terminal.focus()
+      terminal.paste(paths.join(' '))
+    }
+    container.addEventListener('dragover', onDragOver)
+    container.addEventListener('drop', onDrop)
+
+    // Ctrl/Cmd + Wheel → zoom terminal font (persists via settings store)
+    // Register in capture phase + stopPropagation so we intercept before
+    // xterm's own wheel listener (on .xterm-viewport) scrolls the buffer.
+    const onWheelZoom = (e: WheelEvent): void => {
+      if (!(e.ctrlKey || e.metaKey)) return
+      e.preventDefault()
+      e.stopPropagation()
+      if (typeof e.stopImmediatePropagation === 'function') {
+        e.stopImmediatePropagation()
+      }
+      const state = useUIStore.getState()
+      const current = state.settings.terminalFontSize
+      const delta = e.deltaY < 0 ? 1 : -1
+      const next = Math.max(8, Math.min(32, current + delta))
+      if (next !== current) {
+        state.updateSettings({ terminalFontSize: next })
+      }
+    }
+    container.addEventListener('wheel', onWheelZoom, { capture: true, passive: false })
+
     // IME compositionend: clear textarea to prevent stale content
     const textarea = terminal.textarea
     if (textarea) {
@@ -168,9 +346,15 @@ export function useXterm(
 
     // PTY → xterm
     let firstDataSynced = false
+    let pendingCwdControl = ''
     const offData = window.api.session.onData((event) => {
       if (event.ptyId && event.ptyId === ptyId) {
         trackSessionOutput(sessionId, event.data)
+        const cwdUpdate = extractLatestCwdFromOsc7(event.data, pendingCwdControl)
+        pendingCwdControl = cwdUpdate.pending
+        if (cwdUpdate.cwd && cwdUpdate.cwd !== sessionRef.current.cwd) {
+          useSessionsStore.getState().updateSession(sessionId, { cwd: cwdUpdate.cwd })
+        }
         if (!restoreReady) {
           pendingRestoreEvents.push(event)
           return
@@ -253,6 +437,7 @@ export function useXterm(
           sessionId,
           resume: shouldResume,
           resumeUUID,
+          terminalShell: settings.terminalShell,
           cols: terminal.cols || 80,
           rows: terminal.rows || 24,
         })
@@ -498,6 +683,10 @@ export function useXterm(
       offExit()
       onDataDisposable.dispose()
       onResizeDisposable.dispose()
+      linkProviderDisposable.dispose()
+      container.removeEventListener('dragover', onDragOver)
+      container.removeEventListener('drop', onDrop)
+      container.removeEventListener('wheel', onWheelZoom, { capture: true } as EventListenerOptions)
       resizeObserver.disconnect()
       terminal.dispose()
       // NOTE: Do NOT kill PTY here. PTY lifecycle is independent of the React component.
@@ -570,5 +759,5 @@ export function useXterm(
     })
   }, [])
 
-  return { containerRef, searchAddonRef }
+  return { containerRef, searchAddonRef, terminalRef }
 }

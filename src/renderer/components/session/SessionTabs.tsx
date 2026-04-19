@@ -1,5 +1,5 @@
 import { PanelLeftOpen, Plus } from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Session } from '@shared/types'
 import { cn } from '@/lib/utils'
 import { getDefaultWorktreeIdForProject } from '@/lib/project-context'
@@ -25,6 +25,8 @@ export function SessionTabs({ sessions, activeSessionId, projectId }: SessionTab
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
+  const hoverOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reorderSessions = useSessionsStore((s) => s.reorderSessions)
   const sidebarCollapsed = useUIStore((s) => s.dockPanelCollapsed.left)
   const toggleSidebar = useUIStore((s) => s.toggleDockPanel)
@@ -78,13 +80,68 @@ export function SessionTabs({ sessions, activeSessionId, projectId }: SessionTab
     setDropTarget(null)
   }, [])
 
-  const handlePlusClick = (): void => {
+  const clearHoverOpenTimer = useCallback(() => {
+    if (hoverOpenTimerRef.current === null) return
+    clearTimeout(hoverOpenTimerRef.current)
+    hoverOpenTimerRef.current = null
+  }, [])
+
+  const clearHoverCloseTimer = useCallback(() => {
+    if (hoverCloseTimerRef.current === null) return
+    clearTimeout(hoverCloseTimerRef.current)
+    hoverCloseTimerRef.current = null
+  }, [])
+
+  const updateMenuPosition = useCallback(() => {
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect()
       setMenuPos({ top: rect.bottom + 4, left: rect.left })
     }
+  }, [])
+
+  const openNewMenu = useCallback(() => {
+    clearHoverCloseTimer()
+    updateMenuPosition()
+    setShowNewMenu(true)
+  }, [clearHoverCloseTimer, updateMenuPosition])
+
+  const closeNewMenu = useCallback(() => {
+    clearHoverOpenTimer()
+    clearHoverCloseTimer()
+    setShowNewMenu(false)
+  }, [clearHoverCloseTimer, clearHoverOpenTimer])
+
+  const scheduleNewMenuClose = useCallback(() => {
+    clearHoverOpenTimer()
+    clearHoverCloseTimer()
+    hoverCloseTimerRef.current = setTimeout(() => {
+      hoverCloseTimerRef.current = null
+      setShowNewMenu(false)
+    }, 150)
+  }, [clearHoverCloseTimer, clearHoverOpenTimer])
+
+  const handlePlusClick = useCallback((): void => {
+    clearHoverOpenTimer()
+    clearHoverCloseTimer()
+    updateMenuPosition()
     setShowNewMenu(!showNewMenu)
-  }
+  }, [clearHoverCloseTimer, clearHoverOpenTimer, showNewMenu, updateMenuPosition])
+
+  const handlePlusMouseEnter = useCallback(() => {
+    clearHoverCloseTimer()
+    clearHoverOpenTimer()
+    hoverOpenTimerRef.current = setTimeout(() => {
+      hoverOpenTimerRef.current = null
+      openNewMenu()
+    }, 500)
+  }, [clearHoverCloseTimer, clearHoverOpenTimer, openNewMenu])
+
+  useEffect(() => {
+    return () => {
+      clearHoverOpenTimer()
+      clearHoverCloseTimer()
+    }
+  }, [clearHoverCloseTimer, clearHoverOpenTimer])
 
   return (
     <div
@@ -144,13 +201,14 @@ export function SessionTabs({ sessions, activeSessionId, projectId }: SessionTab
         <button
           ref={btnRef}
           onClick={handlePlusClick}
+          onMouseEnter={handlePlusMouseEnter}
+          onMouseLeave={scheduleNewMenuClose}
           className={cn(
             'flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full ml-2 mr-1',
             'text-[var(--color-text-tertiary)] border border-[var(--color-border)]',
             'hover:bg-[var(--color-accent)]/15 hover:border-[var(--color-accent)]/50 hover:text-[var(--color-accent)]',
             'transition-all duration-150',
           )}
-          title="新建会话"
         >
           <Plus size={14} strokeWidth={2.5} />
         </button>
@@ -159,7 +217,9 @@ export function SessionTabs({ sessions, activeSessionId, projectId }: SessionTab
       {showNewMenu && (
         <NewSessionMenu
           projectId={projectId}
-          onClose={() => setShowNewMenu(false)}
+          onClose={closeNewMenu}
+          onMouseEnter={clearHoverCloseTimer}
+          onMouseLeave={scheduleNewMenuClose}
           position={menuPos}
         />
       )}
