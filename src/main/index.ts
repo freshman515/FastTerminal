@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, desktopCapturer, globalShortcut, ipcMain, shell } from 'electron'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { statSync } from 'node:fs'
 import { is } from '@electron-toolkit/utils'
 import { registerAllHandlers } from './ipc'
 import { ptyManager } from './services/PtyManager'
@@ -9,9 +10,92 @@ import { opencodeService } from './services/OpencodeService'
 import { claudeGuiService } from './services/ClaudeGuiService'
 import { updaterService } from './services/UpdaterService'
 import { orchestratorService } from './services/OrchestratorService'
+import { IPC } from '@shared/types'
 
 let mainWindow: BrowserWindow | null = null
 const detachedWindows = new Map<string, BrowserWindow>()
+let pendingOpenPaths: string[] = []
+
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  app.exit(0)
+}
+
+function stripEnclosingQuotes(value: string): string {
+  const trimmed = value.trim()
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1)
+  }
+  return trimmed
+}
+
+function normalizeOpenPath(value: string): string | null {
+  const raw = stripEnclosingQuotes(value)
+  if (!raw) return null
+
+  try {
+    const absolutePath = resolve(raw)
+    const stat = statSync(absolutePath)
+    return stat.isDirectory() ? absolutePath : dirname(absolutePath)
+  } catch {
+    return null
+  }
+}
+
+function getOpenPathsFromArgv(argv: string[]): string[] {
+  const paths: string[] = []
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index]
+    if (arg === '--open-path') {
+      const value = argv[index + 1]
+      if (value) {
+        const path = normalizeOpenPath(value)
+        if (path) paths.push(path)
+        index += 1
+      }
+      continue
+    }
+
+    if (arg.startsWith('--open-path=')) {
+      const path = normalizeOpenPath(arg.slice('--open-path='.length))
+      if (path) paths.push(path)
+    }
+  }
+
+  return paths
+}
+
+function notifyOpenPathsAvailable(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.webContents.send(IPC.LAUNCH_OPEN_PATHS_AVAILABLE)
+}
+
+function enqueueOpenPaths(paths: string[]): void {
+  if (paths.length === 0) return
+  pendingOpenPaths.push(...paths)
+  notifyOpenPathsAvailable()
+}
+
+function showAndFocusMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow()
+    if (mainWindow) {
+      orchestratorService.setMainWindow(mainWindow)
+    }
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+enqueueOpenPaths(getOpenPathsFromArgv(process.argv))
+
+app.on('second-instance', (_event, argv) => {
+  enqueueOpenPaths(getOpenPathsFromArgv(argv))
+  showAndFocusMainWindow()
+})
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -61,6 +145,11 @@ function createWindow(): void {
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
   registerAllHandlers()
+  ipcMain.handle(IPC.LAUNCH_CONSUME_OPEN_PATHS, () => {
+    const paths = pendingOpenPaths
+    pendingOpenPaths = []
+    return paths
+  })
 
   // Boot the FastTerminal MCP bridge HTTP server BEFORE spawning any PTYs,
   // so the env vars (FASTTERMINAL_IDE_PORT / FASTTERMINAL_MCP_TOKEN) are

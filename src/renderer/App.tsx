@@ -17,6 +17,30 @@ import { toggleCurrentSessionFullscreen } from '@/lib/currentSessionFullscreen'
 import { playTaskCompleteSound } from '@/lib/notificationSound'
 import { cn } from '@/lib/utils'
 
+function getPathLabel(path: string): string {
+  const normalized = path.replace(/[\\/]+$/, '').replace(/\\/g, '/')
+  const label = normalized.split('/').pop()
+  return label || path || 'Terminal'
+}
+
+function createTerminalSessionForCwd(cwd?: string): string {
+  const sessionStore = useSessionsStore.getState()
+  const paneStore = usePanesStore.getState()
+  const sessionId = sessionStore.addSession('default', 'terminal')
+
+  if (cwd) {
+    sessionStore.updateSession(sessionId, {
+      cwd,
+      name: getPathLabel(cwd),
+    })
+  }
+
+  paneStore.addSessionToPane(paneStore.activePaneId, sessionId)
+  paneStore.setPaneActiveSession(paneStore.activePaneId, sessionId)
+  sessionStore.setActive(sessionId)
+  return sessionId
+}
+
 export function App(): JSX.Element {
   // Detached windows render a simplified UI
   if (window.api.detach.isDetached) {
@@ -42,12 +66,16 @@ export function App(): JSX.Element {
         (data as Record<string, unknown>).claudeGui as Record<string, unknown> ?? {},
       )
 
-      const sessionStore = useSessionsStore.getState()
-      const paneStore = usePanesStore.getState()
-      const newId = sessionStore.addSession('default', 'terminal')
-      paneStore.addSessionToPane(paneStore.activePaneId, newId)
-      paneStore.setPaneActiveSession(paneStore.activePaneId, newId)
-      sessionStore.setActive(newId)
+      const initialOpenPaths = await window.api.launch.consumeOpenPaths()
+      if (disposed) return
+
+      if (initialOpenPaths.length === 0) {
+        createTerminalSessionForCwd()
+      } else {
+        for (const path of initialOpenPaths) {
+          createTerminalSessionForCwd(path)
+        }
+      }
 
       setReady(true)
     })()
@@ -58,6 +86,29 @@ export function App(): JSX.Element {
   useActivityMonitor()
   useMcpBridge()
   const activePaneTabId = usePanesStore((s) => s.paneActiveSession[s.activePaneId] ?? null)
+
+  useEffect(() => {
+    if (!ready) return
+    let disposed = false
+
+    const openPendingPaths = async (): Promise<void> => {
+      const paths = await window.api.launch.consumeOpenPaths()
+      if (disposed || paths.length === 0) return
+      for (const path of paths) {
+        createTerminalSessionForCwd(path)
+      }
+    }
+
+    const offOpenPathsAvailable = window.api.launch.onOpenPathsAvailable(() => {
+      void openPendingPaths()
+    })
+    void openPendingPaths()
+
+    return () => {
+      disposed = true
+      offOpenPathsAvailable()
+    }
+  }, [ready])
 
   useEffect(() => {
     const sessionStore = useSessionsStore.getState()

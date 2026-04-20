@@ -533,6 +533,9 @@ export const IPC = {
   SESSION_FOCUS: 'session:focus',
   SESSION_IDLE_TOAST: 'session:idle-toast',
 
+  LAUNCH_CONSUME_OPEN_PATHS: 'launch:consume-open-paths',
+  LAUNCH_OPEN_PATHS_AVAILABLE: 'launch:open-paths-available',
+
   PERMISSION_REQUEST: 'permission:request',
   PERMISSION_RESPOND: 'permission:respond',
   PERMISSION_DISMISS: 'permission:dismiss',

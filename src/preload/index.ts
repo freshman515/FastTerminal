@@ -135,6 +135,16 @@ const api = {
       ipcRenderer.invoke(IPC.PERMISSION_RESPOND, id, behavior, suggestionIndex),
   },
 
+  launch: {
+    consumeOpenPaths: () =>
+      ipcRenderer.invoke(IPC.LAUNCH_CONSUME_OPEN_PATHS) as Promise<string[]>,
+    onOpenPathsAvailable: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on(IPC.LAUNCH_OPEN_PATHS_AVAILABLE, handler)
+      return () => ipcRenderer.removeListener(IPC.LAUNCH_OPEN_PATHS_AVAILABLE, handler)
+    },
+  },
+
   claudeGui: {
     start: (options: ClaudeGuiRequestOptions) =>
       ipcRenderer.invoke(IPC.CLAUDE_GUI_START, options) as Promise<void>,
