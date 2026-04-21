@@ -249,6 +249,7 @@ export function App(): JSX.Element {
   }, [])
 
   const fullscreenPaneId = usePanesStore((s) => s.fullscreenPaneId)
+  const isMultiPane = usePanesStore((s) => s.root.type === 'split')
   const windowFullscreen = useUIStore((s) => s.windowFullscreen)
 
   if (!ready) {
@@ -269,7 +270,7 @@ export function App(): JSX.Element {
         </div>
       </div>
 
-      {!hideChrome && <StatusBar />}
+      {!hideChrome && !isMultiPane && <StatusBar />}
 
       <SettingsDialog />
       <PermissionDialog />

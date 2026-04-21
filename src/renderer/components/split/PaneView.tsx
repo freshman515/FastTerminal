@@ -30,6 +30,7 @@ import { NewSessionMenu } from '@/components/session/NewSessionMenu'
 import { TerminalView } from '@/components/session/TerminalView'
 import { EmptyState } from '@/components/session/EmptyState'
 import { ClaudeCodePanel } from '@/components/rightpanel/ClaudeCodePanel'
+import { SessionStatusStrip } from '@/components/layout/SessionStatusStrip'
 
 interface PaneViewProps {
   paneId: string
@@ -807,6 +808,15 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
           />
         )}
       </div>
+
+      {isMultiPane && (
+        <SessionStatusStrip
+          paneId={paneId}
+          compact
+          showSessionBadge
+          showActiveBadge
+        />
+      )}
     </div>
   )
 }
