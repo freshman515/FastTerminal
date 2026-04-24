@@ -91,10 +91,19 @@ function getResumePattern(type: SessionCreateOptions['type']): RegExp | null {
   return null
 }
 
-function quoteWindowsShellArg(value: string, syntax: 'cmd' | 'powershell' | 'posix'): string {
-  if (syntax === 'posix' || !/[\s"'&()^|<>;]/.test(value)) return value
+function quoteShellArg(value: string, syntax: 'cmd' | 'powershell' | 'posix'): string {
+  if (syntax === 'posix') {
+    if (value.length === 0) return "''"
+    if (/^[A-Za-z0-9_@%+=:,./-]+$/.test(value)) return value
+    return `'${value.replace(/'/g, "'\\''")}'`
+  }
+  if (!/[\s"'&()^|<>;]/.test(value)) return value
   if (syntax === 'powershell') return `'${value.replace(/'/g, "''")}'`
   return `"${value.replace(/"/g, '""')}"`
+}
+
+function buildPosixShellCommand(command: string, args: string[]): string {
+  return [command, ...args].map((part) => quoteShellArg(part, 'posix')).join(' ')
 }
 
 function getPowerShellCwdTrackingScript(): string {
@@ -241,8 +250,10 @@ export class PtyManager {
     }
 
     if (agentCmd && !isWindows) {
-      const fullCmd = [agentCmd.command, ...agentCmd.args].join(' ')
-      shellArgs = ['-c', fullCmd]
+      const fullCmd = buildPosixShellCommand(agentCmd.command, agentCmd.args)
+      // Preserve the original shell args (for example `-l`) and append the
+      // command payload to execute.
+      shellArgs = [...shellArgs, '-c', fullCmd]
     }
 
     const cols = options.cols ?? 120
@@ -402,7 +413,7 @@ export class PtyManager {
     // Exit the wrapper shell after the agent exits so PTY exit events fire.
     if (agentCmd && isWindows) {
       setTimeout(() => {
-        const parts = [agentCmd.command, ...agentCmd.args].map((part) => quoteWindowsShellArg(part, shell.syntax))
+        const parts = [agentCmd.command, ...agentCmd.args].map((part) => quoteShellArg(part, shell.syntax))
         const suffix = options.type !== 'terminal'
           ? (shell.syntax === 'cmd' ? ' & exit' : ' ; exit')
           : ''

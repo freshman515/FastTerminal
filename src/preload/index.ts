@@ -358,7 +358,7 @@ const api = {
       title: string,
       sessionData?: unknown[],
       editorData?: unknown[],
-      context?: { projectId: string | null; worktreeId: string | null },
+      context?: { projectId: string | null; worktreeId: string | null; restorePaneId?: string | null },
       position?: { x: number; y: number },
       size?: { width: number; height: number },
     ) =>
@@ -370,18 +370,22 @@ const api = {
     onClosed: (callback: (data: {
       id: string
       tabIds: string[]
+      activeTabId: string | null
       sessions: Session[]
       editors: unknown[]
       projectId: string | null
       worktreeId: string | null
+      restorePaneId: string | null
     }) => void) => {
       const handler = (_: unknown, data: {
         id: string
         tabIds: string[]
+        activeTabId: string | null
         sessions: Session[]
         editors: unknown[]
         projectId: string | null
         worktreeId: string | null
+        restorePaneId: string | null
       }) => callback(data)
       ipcRenderer.on('detach:closed', handler)
       return () => ipcRenderer.removeListener('detach:closed', handler)
@@ -390,13 +394,16 @@ const api = {
       ipcRenderer.invoke('detach:get-sessions', windowId) as Promise<unknown[]>,
     getEditors: (windowId: string) =>
       ipcRenderer.invoke('detach:get-editors', windowId) as Promise<unknown[]>,
-    updateSessionIds: (windowId: string, tabIds: string[]) =>
-      ipcRenderer.invoke('detach:update-session-ids', windowId, tabIds),
+    updateSessionIds: (windowId: string, tabIds: string[], activeTabId?: string | null) =>
+      ipcRenderer.invoke('detach:update-session-ids', windowId, tabIds, activeTabId ?? null),
     updateSessions: (windowId: string, sessions: Session[]) =>
       ipcRenderer.invoke('detach:update-sessions', windowId, sessions),
     updateEditors: (windowId: string, editors: unknown[]) =>
       ipcRenderer.invoke('detach:update-editors', windowId, editors),
-    updateContext: (windowId: string, context: { projectId: string | null; worktreeId: string | null }) =>
+    updateContext: (
+      windowId: string,
+      context: { projectId: string | null; worktreeId: string | null; restorePaneId?: string | null },
+    ) =>
       ipcRenderer.invoke('detach:update-context', windowId, context),
     registerTabDrag: (token: string, payload: unknown) =>
       ipcRenderer.sendSync('detach:tab-drag-register', token, payload) as boolean,

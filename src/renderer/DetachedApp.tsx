@@ -7,6 +7,12 @@ import { useWorktreesStore } from '@/stores/worktrees'
 import { sanitizeEditorTab, useEditorsStore } from '@/stores/editors'
 import { SplitContainer } from '@/components/split/SplitContainer'
 import type { Session } from '@shared/types'
+import type { PaneNode } from '@/stores/panes'
+
+function getLeafPaneIds(node: PaneNode): string[] {
+  if (node.type === 'leaf') return [node.id]
+  return [...getLeafPaneIds(node.first), ...getLeafPaneIds(node.second)]
+}
 
 export function DetachedApp(): JSX.Element {
   const initialTabIds = useRef(window.api.detach.getTabIds()).current
@@ -14,6 +20,7 @@ export function DetachedApp(): JSX.Element {
   const [ready, setReady] = useState(false)
   const projectIdRef = useRef<string>('')
   const worktreeIdRef = useRef<string | null>(null)
+  const restorePaneIdRef = useRef<string | null>(null)
 
   // Load UI settings, session data, and initialize pane store
   useEffect(() => {
@@ -69,22 +76,26 @@ export function DetachedApp(): JSX.Element {
 
   const sessions = useSessionsStore((s) => s.sessions)
   const editors = useEditorsStore((s) => s.tabs)
+  const root = usePanesStore((s) => s.root)
+  const activePaneId = usePanesStore((s) => s.activePaneId)
+  const activeTabId = usePanesStore((s) => s.paneActiveSession[activePaneId] ?? null)
 
   // Sync live detached tabs to main process so newly created tabs can be restored.
   const paneSessions = usePanesStore((s) => s.paneSessions)
   useEffect(() => {
     if (!ready) return
-    const allIds = Object.values(paneSessions).flat()
+    const allIds = getLeafPaneIds(root).flatMap((paneId) => paneSessions[paneId] ?? [])
     const liveSessions = sessions.filter((session) => allIds.includes(session.id))
     const liveEditors = editors.filter((tab) => allIds.includes(tab.id))
-    window.api.detach.updateSessionIds(windowId, allIds)
+    window.api.detach.updateSessionIds(windowId, allIds, activeTabId)
     window.api.detach.updateSessions(windowId, liveSessions)
     window.api.detach.updateEditors(windowId, liveEditors)
     window.api.detach.updateContext(windowId, {
       projectId: projectIdRef.current || liveSessions[0]?.projectId || liveEditors[0]?.projectId || null,
       worktreeId: worktreeIdRef.current ?? liveSessions[0]?.worktreeId ?? liveEditors[0]?.worktreeId ?? null,
+      restorePaneId: restorePaneIdRef.current,
     })
-  }, [editors, paneSessions, sessions, windowId, ready])
+  }, [activeTabId, editors, paneSessions, root, sessions, windowId, ready])
 
   if (!ready) {
     return (

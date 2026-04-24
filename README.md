@@ -138,9 +138,9 @@ ft_wait_for_idle(session_id="<id>", idle_ms=2000, timeout_ms=120000)
 ft_read_session(session_id="<id>", lines=200)
 ```
 
-> **Packaged builds:** the bridge file (`mcp-bridge.cjs`) currently isn't
-> copied into `out/` by the build pipeline — it's dev-only for now. Wiring
-> it into the packaged app is a separate piece of work.
+> **Packaged builds:** the bridge file is shipped as an application resource
+> and copied into `userData/mcp/` on first use, so the same FastTerminal MCP
+> flow works in both dev and installed builds.
 
 ## Keyboard Shortcuts
 

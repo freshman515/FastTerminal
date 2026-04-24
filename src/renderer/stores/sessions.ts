@@ -54,6 +54,7 @@ interface SessionsState {
   addSession: (projectId: string, type: SessionType, worktreeId?: string) => string
   addSessionFromTemplate: (projectId: string, item: { type: SessionType; name: string; prompt?: string }, worktreeId?: string) => string
   removeSession: (id: string) => void
+  dropSessionState: (id: string) => void
   restoreLastClosed: () => void
   setSplit: (id: string | null) => void
   toggleSplitDirection: () => void
@@ -180,6 +181,19 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         : state.closedStack
 
       return { sessions, outputStates, activeSessionId: nextActiveId, closedStack }
+    }),
+
+  dropSessionState: (id) =>
+    set((state) => {
+      if (!state.sessions.some((session) => session.id === id)) return state
+      const sessions = state.sessions.filter((session) => session.id !== id)
+      const { [id]: _, ...outputStates } = state.outputStates
+      return {
+        sessions,
+        outputStates,
+        activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
+        splitSessionId: state.splitSessionId === id ? null : state.splitSessionId,
+      }
     }),
 
   restoreLastClosed: () =>

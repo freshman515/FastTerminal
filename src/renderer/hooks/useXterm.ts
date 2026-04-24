@@ -104,11 +104,13 @@ export function useXterm(
   containerRef: React.RefObject<HTMLDivElement | null>
   searchAddonRef: React.RefObject<SearchAddon | null>
   terminalRef: React.RefObject<Terminal | null>
+  pasteFromClipboardRef: React.RefObject<(() => Promise<void>) | null>
 } {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const searchAddonRef = useRef<SearchAddon | null>(null)
+  const pasteFromClipboardRef = useRef<(() => Promise<void>) | null>(null)
   const sessionRef = useRef(session)
   sessionRef.current = session
 
@@ -464,11 +466,84 @@ export function useXterm(
             setTimeout(syncSize, 1500),
           )
         })
+        .catch((error) => {
+          if (destroyed) return
+          const message = error instanceof Error ? error.message : String(error)
+          terminal.write(`\r\n\x1b[31m[Failed to start session: ${message}]\x1b[0m\r\n`)
+          useSessionsStore.getState().updateSession(sessionId, {
+            ptyId: null,
+            status: 'stopped',
+          })
+          useUIStore.getState().addToast({
+            type: 'error',
+            title: 'Session failed to start',
+            body: `${currentSession.name}: ${message}`,
+          })
+          addTimelineEvent(sessionId, 'error', `Start failed: ${message}`)
+        })
     }
 
     // Undo stack for software undo (used by non-terminal sessions).
     // Each entry is a "chunk" that was added in one action (paste = one chunk, keystroke = one char).
     let undoStack: string[] = []
+
+    // Unified clipboard paste — used by Ctrl+V handler and the context-menu
+    // "Paste" action so both paths record undo chunks and share the image /
+    // text dispatch logic for Claude Code / Codex.
+    const pasteFromClipboard = async (): Promise<void> => {
+      if (sessionType === 'terminal') {
+        try {
+          const text = await navigator.clipboard.readText()
+          if (!text) return
+          terminal.focus()
+          terminal.paste(text)
+          trackSessionInput(sessionId)
+          addTimelineEvent(sessionId, 'input', 'Clipboard paste')
+        } catch {}
+        return
+      }
+
+      // Claude Code / Codex: image → Alt+V (native), text → inject
+      try {
+        const items = await navigator.clipboard.read()
+        const hasImage = items.some((item) => item.types.some((t) => t.startsWith('image/')))
+        if (hasImage) {
+          if (ptyId) {
+            // Capture what the agent echoes (e.g. "[Image #1]") so Ctrl+Z can undo it
+            let echoed = ''
+            const offCapture = window.api.session.onData((event: SessionDataEvent) => {
+              if (event.ptyId === ptyId) echoed += event.data
+            })
+            setTimeout(() => {
+              offCapture()
+              // eslint-disable-next-line no-control-regex
+              const printable = echoed.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').replace(/[^\x20-\x7e]/g, '')
+              if (printable.length > 0) undoStack.push(printable)
+            }, 400)
+            window.api.session.write(ptyId, '\x1bv')
+          }
+          return
+        }
+      } catch {
+        // clipboard.read() may be unavailable; fall through to text paste
+      }
+
+      try {
+        const text = await navigator.clipboard.readText()
+        if (!text) return
+        const printable = [...text].filter((ch) => {
+          const c = ch.charCodeAt(0)
+          return c >= 32 && c !== 127
+        }).join('')
+        if (printable.length > 0) undoStack.push(printable)
+        terminal.focus()
+        terminal.paste(text)
+        trackSessionInput(sessionId)
+        addTimelineEvent(sessionId, 'input', 'Clipboard paste')
+      } catch {}
+    }
+
+    pasteFromClipboardRef.current = pasteFromClipboard
 
     terminal.attachCustomKeyEventHandler((e) => {
       if (e.type !== 'keydown') return true
@@ -521,101 +596,18 @@ export function useXterm(
         return false
       }
 
-      // Codex Ctrl+V: smart paste — image → Alt+V (Codex native), text → inject
-      if ((sessionType === 'codex' || sessionType === 'codex-yolo')
+      // Ctrl/Cmd+V: smart paste for Claude Code / Codex — image → Alt+V, text → inject.
+      // Terminal sessions fall through to xterm's default paste path.
+      const isSmartPasteTarget =
+        sessionType === 'codex' || sessionType === 'codex-yolo'
+        || sessionType === 'claude-code' || sessionType === 'claude-code-yolo'
+      if (isSmartPasteTarget
         && (e.ctrlKey || e.metaKey)
         && !e.altKey
         && e.key.toLowerCase() === 'v') {
         e.preventDefault()
         e.stopPropagation()
-        void (async () => {
-          try {
-            const items = await navigator.clipboard.read()
-            const hasImage = items.some((item) =>
-              item.types.some((t) => t.startsWith('image/'))
-            )
-            if (hasImage) {
-              if (ptyId) {
-                // Capture what Codex echoes back (e.g. "[Image #1]") so Ctrl+Z can undo it
-                let echoed = ''
-                const offCapture = window.api.session.onData((event: SessionDataEvent) => {
-                  if (event.ptyId === ptyId) echoed += event.data
-                })
-                setTimeout(() => {
-                  offCapture()
-                  // Strip ANSI escape sequences and keep only printable ASCII
-                  // eslint-disable-next-line no-control-regex
-                  const printable = echoed.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').replace(/[^\x20-\x7e]/g, '')
-                  if (printable.length > 0) undoStack.push(printable)
-                }, 400)
-                window.api.session.write(ptyId, '\x1bv')
-              }
-              return
-            }
-          } catch {
-            // clipboard.read() may be unavailable; fall through to text paste
-          }
-          // Text paste
-          try {
-            const text = await navigator.clipboard.readText()
-            if (!text) return
-            // Track entire paste as one undo chunk (at call site, not in onData,
-            // to avoid double-counting and bracketed-paste escape sequences)
-            const printable = [...text].filter((ch) => {
-              const c = ch.charCodeAt(0)
-              return c >= 32 && c !== 127
-            }).join('')
-            if (printable.length > 0) undoStack.push(printable)
-            terminal.focus()
-            terminal.paste(text)
-            trackSessionInput(sessionId)
-            addTimelineEvent(sessionId, 'input', 'Clipboard paste')
-          } catch {}
-        })()
-        return false
-      }
-
-      // Claude Code Ctrl+V: smart paste — image → Alt+V, text → inject
-      if (e.ctrlKey && e.key === 'v' && (sessionType === 'claude-code' || sessionType === 'claude-code-yolo')) {
-        e.preventDefault()
-        e.stopPropagation()
-        void (async () => {
-          try {
-            const items = await navigator.clipboard.read()
-            const hasImage = items.some((item) => item.types.some((t) => t.startsWith('image/')))
-            if (hasImage) {
-              if (ptyId) {
-                // Same echo-capture as Codex for undo
-                let echoed = ''
-                const offCapture = window.api.session.onData((event: SessionDataEvent) => {
-                  if (event.ptyId === ptyId) echoed += event.data
-                })
-                setTimeout(() => {
-                  offCapture()
-                  // eslint-disable-next-line no-control-regex
-                  const printable = echoed.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').replace(/[^\x20-\x7e]/g, '')
-                  if (printable.length > 0) undoStack.push(printable)
-                }, 400)
-                window.api.session.write(ptyId, '\x1bv')
-              }
-              return
-            }
-          } catch {}
-          // Text paste
-          try {
-            const text = await navigator.clipboard.readText()
-            if (!text) return
-            const printable = [...text].filter((ch) => {
-              const c = ch.charCodeAt(0)
-              return c >= 32 && c !== 127
-            }).join('')
-            if (printable.length > 0) undoStack.push(printable)
-            terminal.focus()
-            terminal.paste(text)
-            trackSessionInput(sessionId)
-            addTimelineEvent(sessionId, 'input', 'Clipboard paste')
-          } catch {}
-        })()
+        void pasteFromClipboard()
         return false
       }
 
@@ -679,6 +671,7 @@ export function useXterm(
       terminalRef.current = null
       fitAddonRef.current = null
       searchAddonRef.current = null
+      pasteFromClipboardRef.current = null
       offData()
       offExit()
       onDataDisposable.dispose()
@@ -759,5 +752,5 @@ export function useXterm(
     })
   }, [])
 
-  return { containerRef, searchAddonRef, terminalRef }
+  return { containerRef, searchAddonRef, terminalRef, pasteFromClipboardRef }
 }

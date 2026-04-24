@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import { IPC } from '@shared/types'
 
 export function registerWindowHandlers(): void {
@@ -13,8 +13,8 @@ export function registerWindowHandlers(): void {
     }
   })
 
-  ipcMain.handle(IPC.WINDOW_CLOSE, () => {
-    app.quit()
+  ipcMain.handle(IPC.WINDOW_CLOSE, (event) => {
+    BrowserWindow.fromWebContents(event.sender)?.close()
   })
 
   ipcMain.handle(IPC.WINDOW_IS_MAXIMIZED, (event) => {

@@ -53,11 +53,14 @@ export function SessionTab({
   onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd,
 }: SessionTabProps): JSX.Element {
   const removeSession = useSessionsStore((s) => s.removeSession)
+  const dropSessionState = useSessionsStore((s) => s.dropSessionState)
   const updateSession = useSessionsStore((s) => s.updateSession)
+  const addToast = useUIStore((s) => s.addToast)
   const setPaneActiveSession = usePanesStore((s) => s.setPaneActiveSession)
   const setActivePaneId = usePanesStore((s) => s.setActivePaneId)
   const splitPane = usePanesStore((s) => s.splitPane)
   const removeSessionFromPane = usePanesStore((s) => s.removeSessionFromPane)
+  const transferSessionOutOfPane = usePanesStore((s) => s.transferSessionOutOfPane)
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [showCloseConfirm, setShowCloseConfirm] = useState(false)
@@ -72,6 +75,32 @@ export function SessionTab({
   const terminalIcon = isDarkTheme ? terminalIconDark : terminalIconLight
   const iconSrc = session.type === 'terminal' ? terminalIcon : (TYPE_ICONS[session.type] ?? claudeIcon)
   const currentWindowId = window.api.detach.isDetached ? window.api.detach.getWindowId() : 'main'
+
+  const detachSessionToWindow = useCallback((
+    liveSession: Session | undefined,
+    title: string,
+    position?: { x: number; y: number },
+    size?: { width: number; height: number },
+  ) => {
+    void window.api.detach.create(
+      [session.id],
+      title,
+      liveSession ? [liveSession] : [],
+      [],
+      { projectId: session.projectId, worktreeId: session.worktreeId ?? null, restorePaneId: paneId },
+      position,
+      size,
+    ).then(() => {
+      transferSessionOutOfPane(paneId, session.id)
+      dropSessionState(session.id)
+    }).catch((error) => {
+      addToast({
+        type: 'error',
+        title: '弹出窗口失败',
+        body: error instanceof Error ? error.message : String(error),
+      })
+    })
+  }, [addToast, dropSessionState, paneId, session.id, session.projectId, session.worktreeId, transferSessionOutOfPane])
 
   const handleClick = useCallback(() => {
     if (isRenaming) return
@@ -184,7 +213,8 @@ export function SessionTab({
           const dragResult = dragToken ? window.api.detach.finishTabDrag(dragToken) : null
 
           if (dragResult?.claimed && dragResult.targetWindowId && dragResult.targetWindowId !== currentWindowId) {
-            removeSessionFromPane(paneId, session.id)
+            transferSessionOutOfPane(paneId, session.id)
+            dropSessionState(session.id)
             return
           }
 
@@ -199,13 +229,9 @@ export function SessionTab({
             const detachTitle = (project?.name ?? session.name) + (branch ? `|${branch}` : '')
             const { popoutPosition, popoutWidth, popoutHeight } = useUIStore.getState().settings
             const pos = popoutPosition === 'center' ? undefined : { x: screenX, y: screenY }
-            removeSessionFromPane(paneId, session.id)
-            window.api.detach.create(
-              [session.id],
+            detachSessionToWindow(
+              liveSession,
               detachTitle,
-              liveSession ? [liveSession] : [],
-              [],
-              { projectId: session.projectId, worktreeId: session.worktreeId ?? null },
               pos,
               { width: popoutWidth, height: popoutHeight },
             )
@@ -421,13 +447,9 @@ export function SessionTab({
                 const { popoutPosition, popoutWidth, popoutHeight } = useUIStore.getState().settings
                 const pos = popoutPosition === 'center' ? undefined
                   : { x: window.screenX + window.innerWidth / 2, y: window.screenY + window.innerHeight / 2 }
-                removeSessionFromPane(paneId, session.id)
-                window.api.detach.create(
-                  [session.id],
+                detachSessionToWindow(
+                  liveSession,
                   detachTitle,
-                  liveSession ? [liveSession] : [],
-                  [],
-                  { projectId: session.projectId, worktreeId: session.worktreeId ?? null },
                   pos,
                   { width: popoutWidth, height: popoutHeight },
                 )

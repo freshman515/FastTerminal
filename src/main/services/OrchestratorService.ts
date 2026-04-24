@@ -392,9 +392,12 @@ export class OrchestratorService {
     const deadline = startedAt + timeoutMs
 
     while (nowMs() < deadline) {
-      const last = this.lastDataAt.get(ptyId) ?? 0
-      const sinceLast = nowMs() - last
-      if (last !== 0 && sinceLast >= idleMs) {
+      // If the PTY has never emitted output, treat this wait request as the
+      // start of the quiet period so newly created or silent sessions can
+      // still become idle after `idleMs`.
+      const quietSince = this.lastDataAt.get(ptyId) ?? startedAt
+      const sinceLast = nowMs() - quietSince
+      if (sinceLast >= idleMs) {
         jsonResponse(res, 200, {
           idle: true,
           waitedMs: nowMs() - startedAt,

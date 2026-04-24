@@ -1,6 +1,6 @@
 import { Bot, ChevronRight, GitBranch, Loader2, Play, RefreshCw, Target, X, Zap } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { SessionType } from '@shared/types'
+import { ANONYMOUS_PROJECT_ID, type SessionType } from '@shared/types'
 import { cn } from '@/lib/utils'
 import { useOrchestratorStore, type AgentRun, type AgentWorker } from '@/stores/orchestrator'
 import { usePanesStore } from '@/stores/panes'
@@ -370,7 +370,7 @@ export function AgentOrchestratorPanel(): JSX.Element {
     setLaunching(true)
     const sessionStore = useSessionsStore.getState()
     const paneStore = usePanesStore.getState()
-    const projectId = activeSession?.projectId ?? selectedProjectId ?? 'default'
+    const projectId = activeSession?.projectId ?? selectedProjectId ?? ANONYMOUS_PROJECT_ID
     let baseCwd = activeSession?.cwd ?? selectedProject?.path ?? ''
     if (!baseCwd) {
       baseCwd = await window.api.config.getAnonymousWorkspace()

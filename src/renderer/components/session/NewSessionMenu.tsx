@@ -29,6 +29,7 @@ const SESSION_OPTION_BY_ID = new Map(SESSION_OPTIONS.map((option) => [option.id,
 
 interface NewSessionMenuProps {
   projectId: string
+  worktreeId?: string
   paneId?: string
   onClose: () => void
   position: { top: number; left: number }
@@ -38,6 +39,7 @@ interface NewSessionMenuProps {
 
 export function NewSessionMenu({
   projectId,
+  worktreeId,
   paneId,
   onClose,
   position,
@@ -53,13 +55,13 @@ export function NewSessionMenu({
 
   const handleSelect = useCallback(
     (type: SessionType) => {
-      const worktreeId = getDefaultWorktreeIdForProject(projectId)
-      const id = addSession(projectId, type, worktreeId)
+      const targetWorktreeId = worktreeId ?? getDefaultWorktreeIdForProject(projectId)
+      const id = addSession(projectId, type, targetWorktreeId)
       const targetPane = paneId ?? usePanesStore.getState().activePaneId
       addSessionToPane(targetPane, id)
       onClose()
     },
-    [projectId, paneId, addSession, addSessionToPane, onClose],
+    [projectId, worktreeId, paneId, addSession, addSessionToPane, onClose],
   )
 
   const resolveTargetCwd = useCallback(async (): Promise<string> => {

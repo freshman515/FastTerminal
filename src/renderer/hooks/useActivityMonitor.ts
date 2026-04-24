@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { switchProjectContext } from '@/lib/project-context'
+import { usePanesStore } from '@/stores/panes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useProjectsStore } from '@/stores/projects'
 import { useUIStore } from '@/stores/ui'
@@ -17,7 +18,26 @@ export function useActivityMonitor(): void {
     const interval = setInterval(async () => {
       const { sessions, outputStates, activeSessionId, updateStatus, setOutputState } =
         useSessionsStore.getState()
-      const runningSessions = sessions.filter((s) => s.status === 'running' && s.ptyId)
+      const panesState = usePanesStore.getState()
+      const attachedSessionIds = new Set(Object.values(panesState.paneSessions).flat())
+      const visibleSessionIds = panesState.fullscreenPaneId
+        ? new Set(
+            [panesState.paneActiveSession[panesState.fullscreenPaneId]].filter(
+              (sessionId): sessionId is string => Boolean(sessionId),
+            ),
+          )
+        : new Set(
+            Object.values(panesState.paneActiveSession).filter((sessionId): sessionId is string => Boolean(sessionId)),
+          )
+      const runningSessions = sessions.filter(
+        (session) => session.status === 'running' && session.ptyId && attachedSessionIds.has(session.id),
+      )
+      const runningSessionIds = new Set(runningSessions.map((session) => session.id))
+      for (const sessionId of Object.keys(idleCountsRef.current)) {
+        if (!runningSessionIds.has(sessionId)) {
+          delete idleCountsRef.current[sessionId]
+        }
+      }
 
       for (const session of runningSessions) {
         if (!session.ptyId) continue
@@ -32,7 +52,7 @@ export function useActivityMonitor(): void {
             idleCountsRef.current[session.id] = count
 
             if (count >= IDLE_THRESHOLD && outputStates[session.id] === 'outputting') {
-              const isViewing = activeSessionId === session.id
+              const isViewing = visibleSessionIds.has(session.id) || activeSessionId === session.id
               setOutputState(session.id, isViewing ? 'idle' : 'unread')
               updateStatus(session.id, 'idle')
               updateAgentStatus(session.id, 'idle')
@@ -75,6 +95,13 @@ export function useActivityMonitor(): void {
         const session = useSessionsStore.getState().sessions.find((s) => s.id === data.sessionId)
         if (session) {
           switchProjectContext(session.projectId, session.id, session.worktreeId ?? null)
+          const paneStore = usePanesStore.getState()
+          const paneId = Object.entries(paneStore.paneSessions)
+            .find(([, sessionIds]) => sessionIds.includes(session.id))?.[0]
+          if (paneId) {
+            paneStore.setActivePaneId(paneId)
+            paneStore.setPaneActiveSession(paneId, session.id)
+          }
         } else if (data.projectId) {
           useProjectsStore.getState().selectProject(data.projectId)
         }
@@ -90,12 +117,24 @@ export function useActivityMonitor(): void {
   useEffect(() => {
     return window.api.session.onExit((event) => {
       const { sessions, activeSessionId } = useSessionsStore.getState()
+      const panesState = usePanesStore.getState()
+      const attachedSessionIds = new Set(Object.values(panesState.paneSessions).flat())
+      const visibleSessionIds = panesState.fullscreenPaneId
+        ? new Set(
+            [panesState.paneActiveSession[panesState.fullscreenPaneId]].filter(
+              (sessionId): sessionId is string => Boolean(sessionId),
+            ),
+          )
+        : new Set(
+            Object.values(panesState.paneActiveSession).filter((sessionId): sessionId is string => Boolean(sessionId)),
+          )
       const session = sessions.find((s) => s.ptyId === event.ptyId)
       if (!session) return
+      if (!attachedSessionIds.has(session.id)) return
       updateAgentStatus(session.id, 'stopped')
       addTimelineEvent(session.id, event.exitCode === 0 ? 'stop' : 'error', `Exited with code ${event.exitCode}`)
 
-      const isViewing = activeSessionId === session.id
+      const isViewing = visibleSessionIds.has(session.id) || activeSessionId === session.id
       if (!isViewing && useUIStore.getState().settings.notificationToastEnabled) {
         const project = useProjectsStore
           .getState()

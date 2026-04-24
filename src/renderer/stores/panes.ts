@@ -61,6 +61,7 @@ interface PanesState {
   setPaneActiveSession: (paneId: string, sessionId: string | null) => void
   addSessionToPane: (paneId: string, sessionId: string) => void
   removeSessionFromPane: (paneId: string, sessionId: string) => void
+  transferSessionOutOfPane: (paneId: string, sessionId: string) => void
   moveSession: (fromPaneId: string, toPaneId: string, sessionId: string) => void
   resizeSplit: (splitId: string, ratio: number) => void
   beginSplitResize: () => void
@@ -611,13 +612,17 @@ export const usePanesStore = create<PanesState>((set, get) => ({
     })
   },
 
-  setActivePaneId: (paneId) => set((state) => ({
-    activePaneId: paneId,
-    fullscreenPaneId: state.fullscreenPaneId ? paneId : null,
-  })),
+  setActivePaneId: (paneId) => set((state) => {
+    if (!hasLeaf(state.root, paneId)) return state
+    return {
+      activePaneId: paneId,
+      fullscreenPaneId: state.fullscreenPaneId ? paneId : null,
+    }
+  }),
 
   setPaneActiveSession: (paneId, sessionId) =>
     set((state) => {
+      if (!hasLeaf(state.root, paneId)) return state
       const sessions = state.paneSessions[paneId] ?? []
       if (sessionId !== null && !sessions.includes(sessionId)) return state
       if ((state.paneActiveSession[paneId] ?? null) === sessionId) return state
@@ -637,6 +642,7 @@ export const usePanesStore = create<PanesState>((set, get) => ({
 
   addSessionToPane: (paneId, sessionId) =>
     set((state) => {
+      if (!hasLeaf(state.root, paneId)) return state
       const sessions = state.paneSessions[paneId] ?? []
       if (sessions.includes(sessionId)) return state
       const nextSessions = [...sessions, sessionId]
@@ -677,6 +683,25 @@ export const usePanesStore = create<PanesState>((set, get) => ({
         get().closePane(paneId)
       }
     }
+  },
+
+  transferSessionOutOfPane: (paneId, sessionId) => {
+    const state = get()
+    if (!hasLeaf(state.root, paneId)) return
+    const sessions = (state.paneSessions[paneId] ?? []).filter((id) => id !== sessionId)
+    const active = state.paneActiveSession[paneId]
+    const existingRecent = (state.paneRecentSessions[paneId] ?? []).filter((id) => id !== sessionId)
+    const newActive = active === sessionId
+      ? (existingRecent[0] ?? sessions[0] ?? null)
+      : (active && sessions.includes(active) ? active : (existingRecent[0] ?? sessions[0] ?? null))
+    set({
+      paneSessions: { ...state.paneSessions, [paneId]: sessions },
+      paneActiveSession: { ...state.paneActiveSession, [paneId]: newActive },
+      paneRecentSessions: {
+        ...state.paneRecentSessions,
+        [paneId]: buildPaneRecentSessions(sessions, newActive, existingRecent),
+      },
+    })
   },
 
   moveSession: (fromPaneId, toPaneId, sessionId) => {

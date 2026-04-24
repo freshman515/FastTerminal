@@ -18,6 +18,7 @@ function getSourceBridgeCandidates(): string[] {
   return [
     join(process.cwd(), 'src', 'main', 'services', 'mcp-bridge.cjs'),
     join(__dirname, 'mcp-bridge.cjs'),
+    join(process.resourcesPath, 'mcp', 'fastterminal-mcp-bridge.cjs'),
     join(process.resourcesPath, 'app.asar', 'src', 'main', 'services', 'mcp-bridge.cjs'),
   ]
 }

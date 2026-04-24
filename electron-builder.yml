@@ -17,6 +17,10 @@ files:
   - "!node_modules/**/*.ts"
   - "!node_modules/**/*.map"
 
+extraResources:
+  - from: "src/main/services/mcp-bridge.cjs"
+    to: "mcp/fastterminal-mcp-bridge.cjs"
+
 asar: true
 asarUnpack:
   - "node_modules/@lydell/node-pty/**"

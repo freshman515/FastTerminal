@@ -6,13 +6,15 @@ import { PermissionDialog } from '@/components/permission/PermissionDialog'
 import { UpdateDialog } from '@/components/update/UpdateDialog'
 import { DetachedApp } from '@/DetachedApp'
 import { usePanesStore } from '@/stores/panes'
+import { useProjectsStore } from '@/stores/projects'
 import { useUIStore } from '@/stores/ui'
 import { useSessionsStore } from '@/stores/sessions'
+import { useWorktreesStore } from '@/stores/worktrees'
 import { useClaudeGuiStore } from '@/stores/claudeGui'
 import { useActivityMonitor } from '@/hooks/useActivityMonitor'
 import { useMcpBridge } from '@/hooks/useMcpBridge'
 import { useEffect, useState } from 'react'
-import { isClaudeCodeType } from '@shared/types'
+import { ANONYMOUS_PROJECT_ID, isClaudeCodeType } from '@shared/types'
 import { toggleCurrentSessionFullscreen } from '@/lib/currentSessionFullscreen'
 import { playTaskCompleteSound } from '@/lib/notificationSound'
 import { cn } from '@/lib/utils'
@@ -23,10 +25,46 @@ function getPathLabel(path: string): string {
   return label || path || 'Terminal'
 }
 
+function normalizeProjectPath(path: string): string {
+  return path.replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase()
+}
+
+function resolveSessionContextForCwd(cwd?: string): { projectId: string; worktreeId?: string } {
+  const projectsStore = useProjectsStore.getState()
+  const worktreesStore = useWorktreesStore.getState()
+  const normalizedCwd = cwd ? normalizeProjectPath(cwd) : ''
+
+  if (normalizedCwd) {
+    const matchedWorktree = worktreesStore.worktrees.find((worktree) => {
+      const worktreePath = normalizeProjectPath(worktree.path)
+      return normalizedCwd === worktreePath || normalizedCwd.startsWith(`${worktreePath}/`)
+    })
+    if (matchedWorktree) {
+      return {
+        projectId: matchedWorktree.projectId,
+        ...(matchedWorktree.isMain ? {} : { worktreeId: matchedWorktree.id }),
+      }
+    }
+
+    const matchedProject = projectsStore.projects.find((project) => {
+      const projectPath = normalizeProjectPath(project.path)
+      return normalizedCwd === projectPath || normalizedCwd.startsWith(`${projectPath}/`)
+    })
+    if (matchedProject) {
+      return { projectId: matchedProject.id }
+    }
+  }
+
+  return {
+    projectId: projectsStore.selectedProjectId ?? ANONYMOUS_PROJECT_ID,
+  }
+}
+
 function createTerminalSessionForCwd(cwd?: string): string {
   const sessionStore = useSessionsStore.getState()
   const paneStore = usePanesStore.getState()
-  const sessionId = sessionStore.addSession('default', 'terminal')
+  const context = resolveSessionContextForCwd(cwd)
+  const sessionId = sessionStore.addSession(context.projectId, 'terminal', context.worktreeId)
 
   if (cwd) {
     sessionStore.updateSession(sessionId, {
@@ -61,6 +99,10 @@ export function App(): JSX.Element {
       useUIStore.getState()._loadSettings(
         data.ui,
         (data as Record<string, unknown>).customThemes as Record<string, unknown> | undefined,
+      )
+      useProjectsStore.getState()._loadFromConfig(data.projects)
+      useWorktreesStore.getState()._loadFromConfig(
+        (data as Record<string, unknown>).worktrees as unknown[] ?? [],
       )
       useClaudeGuiStore.getState()._loadFromConfig(
         (data as Record<string, unknown>).claudeGui as Record<string, unknown> ?? {},
@@ -179,6 +221,36 @@ export function App(): JSX.Element {
     })
   }, [])
 
+  useEffect(() => {
+    return window.api.detach.onClosed((event) => {
+      const paneStore = usePanesStore.getState()
+      const sessionStore = useSessionsStore.getState()
+      const targetPaneId = event.restorePaneId && paneStore.paneSessions[event.restorePaneId]
+        ? event.restorePaneId
+        : paneStore.activePaneId
+
+      sessionStore.upsertSessions(event.sessions)
+
+      for (const tabId of event.tabIds) {
+        paneStore.addSessionToPane(targetPaneId, tabId)
+      }
+
+      const restoredSessionId = event.activeTabId && event.tabIds.includes(event.activeTabId)
+        ? event.activeTabId
+        : event.tabIds[event.tabIds.length - 1] ?? null
+      if (restoredSessionId) {
+        paneStore.setActivePaneId(targetPaneId)
+        paneStore.setPaneActiveSession(targetPaneId, restoredSessionId)
+        sessionStore.setActive(restoredSessionId)
+      }
+
+      if (event.projectId) {
+        useProjectsStore.getState().selectProject(event.projectId)
+      }
+      useWorktreesStore.getState().selectWorktree(event.worktreeId ?? null)
+    })
+  }, [])
+
   // F11 fullscreen
   useEffect(() => {
     const handleF11 = (e: KeyboardEvent): void => {
@@ -206,6 +278,17 @@ export function App(): JSX.Element {
         const restored = useSessionsStore.getState()
         const newest = restored.sessions[restored.sessions.length - 1]
         if (newest) paneStore.addSessionToPane(activePaneId, newest.id)
+        return
+      }
+
+      if (e.ctrlKey && e.key === 'Tab') {
+        e.preventDefault()
+        if (paneSessions.length <= 1) return
+        const activeIdx = activeSessionId ? paneSessions.indexOf(activeSessionId) : 0
+        const direction = e.shiftKey ? -1 : 1
+        const startIdx = activeIdx >= 0 ? activeIdx : 0
+        const nextIdx = (startIdx + direction + paneSessions.length) % paneSessions.length
+        paneStore.setPaneActiveSession(activePaneId, paneSessions[nextIdx])
         return
       }
 

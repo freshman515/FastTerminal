@@ -16,6 +16,13 @@ let mainWindow: BrowserWindow | null = null
 const detachedWindows = new Map<string, BrowserWindow>()
 let pendingOpenPaths: string[] = []
 
+function hasDetachedWindows(): boolean {
+  for (const [, win] of detachedWindows) {
+    if (!win.isDestroyed()) return true
+  }
+  return false
+}
+
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
   app.exit(0)
@@ -130,6 +137,25 @@ function createWindow(): void {
     mainWindow?.show()
   })
 
+  mainWindow.on('close', (event) => {
+    if (isQuitting) return
+
+    // Keep the main renderer alive while detached windows exist so shared
+    // stores, global shortcuts, and the MCP bridge continue to function.
+    if (hasDetachedWindows()) {
+      event.preventDefault()
+      mainWindow?.hide()
+      return
+    }
+
+    event.preventDefault()
+    app.quit()
+  })
+
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -182,9 +208,14 @@ app.whenReady().then(async () => {
   // Store live tab snapshots for detached windows to fetch and hand back on close
   const detachedSessionData = new Map<string, unknown[]>()
   const detachedEditorData = new Map<string, unknown[]>()
-  const detachedContext = new Map<string, { projectId: string | null; worktreeId: string | null }>()
+  const detachedContext = new Map<string, {
+    projectId: string | null
+    worktreeId: string | null
+    restorePaneId: string | null
+  }>()
   // Track live tab IDs per detached window (updated by the detached renderer)
   const detachedTabIds = new Map<string, string[]>()
+  const detachedActiveTabIds = new Map<string, string | null>()
   const tabDragState = new Map<string, {
     payload: unknown
     targetWindowId: string | null
@@ -198,8 +229,9 @@ app.whenReady().then(async () => {
     return detachedEditorData.get(windowId) ?? []
   })
 
-  ipcMain.handle('detach:update-session-ids', (_event, windowId: string, tabIds: string[]) => {
+  ipcMain.handle('detach:update-session-ids', (_event, windowId: string, tabIds: string[], activeTabId?: string | null) => {
     detachedTabIds.set(windowId, tabIds)
+    detachedActiveTabIds.set(windowId, typeof activeTabId === 'string' ? activeTabId : null)
   })
 
   ipcMain.handle('detach:update-sessions', (_event, windowId: string, sessions: unknown[]) => {
@@ -210,8 +242,21 @@ app.whenReady().then(async () => {
     detachedEditorData.set(windowId, editors)
   })
 
-  ipcMain.handle('detach:update-context', (_event, windowId: string, context: { projectId: string | null; worktreeId: string | null }) => {
-    detachedContext.set(windowId, context)
+  ipcMain.handle('detach:update-context', (
+    _event,
+    windowId: string,
+    context: { projectId: string | null; worktreeId: string | null; restorePaneId?: string | null },
+  ) => {
+    const existing = detachedContext.get(windowId) ?? {
+      projectId: null,
+      worktreeId: null,
+      restorePaneId: null,
+    }
+    detachedContext.set(windowId, {
+      projectId: context.projectId ?? existing.projectId,
+      worktreeId: context.worktreeId ?? existing.worktreeId,
+      restorePaneId: context.restorePaneId ?? existing.restorePaneId,
+    })
   })
 
   ipcMain.on('detach:tab-drag-register', (event, token: string, payload: unknown) => {
@@ -256,7 +301,7 @@ app.whenReady().then(async () => {
       title: string,
       sessionData: unknown[],
       editorData: unknown[],
-      context?: { projectId: string | null; worktreeId: string | null } | null,
+      context?: { projectId: string | null; worktreeId: string | null; restorePaneId?: string | null } | null,
       position?: { x: number; y: number },
       size?: { width: number; height: number },
     ) => {
@@ -285,27 +330,31 @@ app.whenReady().then(async () => {
     detachedSessionData.set(id, sessionData)
     detachedEditorData.set(id, editorData)
     detachedTabIds.set(id, tabIds)
-    detachedContext.set(id, context ?? { projectId: null, worktreeId: null })
+    detachedContext.set(id, context ?? { projectId: null, worktreeId: null, restorePaneId: null })
 
     win.on('closed', () => {
       // Use the latest tab list (includes newly added tabs)
       const liveIds = detachedTabIds.get(id) ?? tabIds
+      const activeTabId = detachedActiveTabIds.get(id) ?? null
       const liveSessions = detachedSessionData.get(id) ?? sessionData
       const liveEditors = detachedEditorData.get(id) ?? editorData
-      const liveContext = detachedContext.get(id) ?? context ?? { projectId: null, worktreeId: null }
+      const liveContext = detachedContext.get(id) ?? context ?? { projectId: null, worktreeId: null, restorePaneId: null }
       detachedWindows.delete(id)
       detachedSessionData.delete(id)
       detachedEditorData.delete(id)
       detachedTabIds.delete(id)
+      detachedActiveTabIds.delete(id)
       detachedContext.delete(id)
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('detach:closed', {
           id,
           tabIds: liveIds,
+          activeTabId,
           sessions: liveSessions,
           editors: liveEditors,
           projectId: liveContext.projectId ?? null,
           worktreeId: liveContext.worktreeId ?? null,
+          restorePaneId: liveContext.restorePaneId ?? null,
         })
       }
     })

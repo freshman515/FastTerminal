@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { ANONYMOUS_PROJECT_ID } from '@shared/types'
 import { cn } from '@/lib/utils'
 import {
   usePanesStore,
@@ -23,6 +24,7 @@ import {
   type PaneNode,
   type SplitPosition,
 } from '@/stores/panes'
+import { useProjectsStore } from '@/stores/projects'
 import { useSessionsStore } from '@/stores/sessions'
 import { useUIStore } from '@/stores/ui'
 import { SessionTab } from '@/components/session/SessionTab'
@@ -97,6 +99,10 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
       .map((id) => allSessions.find((s) => s.id === id))
       .filter(Boolean) as typeof allSessions
   }, [paneSessions, allSessions])
+  const selectedProjectId = useProjectsStore((s) => s.selectedProjectId)
+  const paneContextSession = sessions.find((session) => session.id === paneActiveSessionId) ?? sessions[0] ?? null
+  const paneProjectId = paneContextSession?.projectId ?? selectedProjectId ?? ANONYMOUS_PROJECT_ID
+  const paneWorktreeId = paneContextSession?.worktreeId
 
   const isTopRightLeaf = paneId === getTopRightLeafId(root)
   const showDetachedWindowControls = isDetached && isTopRightLeaf
@@ -208,7 +214,10 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
 
     if (!activeSessionId && currentSessions.length === 0) {
       const defaultType = useUIStore.getState().settings.defaultSessionType
-      const sessionId = sessionStore.addSession('default', defaultType)
+      const sessionId = sessionStore.addSession(
+        selectedProjectId ?? ANONYMOUS_PROJECT_ID,
+        defaultType,
+      )
       paneStore.addSessionToPane(paneId, sessionId)
       paneStore.setPaneActiveSession(paneId, sessionId)
       sessionStore.setActive(sessionId)
@@ -223,7 +232,7 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
         : null
       const defaultType = useUIStore.getState().settings.defaultSessionType
       splitSessionId = sessionStore.addSession(
-        activeSession?.projectId ?? 'default',
+        activeSession?.projectId ?? selectedProjectId ?? ANONYMOUS_PROJECT_ID,
         defaultType,
         activeSession?.worktreeId,
       )
@@ -333,16 +342,17 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
     const tabId = payload.session.id
     useSessionsStore.getState().upsertSessions([payload.session])
     const store = usePanesStore.getState()
+    const splitDrop = Boolean(zone && zone !== 'center')
 
-    if (zone && zone !== 'center') {
+    if (splitDrop) {
       store.addSessionToPane(paneId, tabId)
       store.splitPane(paneId, zone, tabId)
     } else {
       store.addSessionToPane(paneId, tabId)
+      store.setActivePaneId(paneId)
+      store.setPaneActiveSession(paneId, tabId)
     }
 
-    store.setActivePaneId(paneId)
-    store.setPaneActiveSession(paneId, tabId)
     useSessionsStore.getState().setActive(payload.session.id)
     return true
   }, [currentWindowId, paneId])
@@ -438,13 +448,16 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
         onDragLeave={handleTabRowDragLeave}
         onDrop={handleTabRowDrop}
       >
+        {/* Scrollable tabs + trailing blank — single flex-1 container so the
+            entire strip (gaps, tail whitespace) is a valid drop zone. Do NOT
+            add `drag-region` here: CSS `-webkit-app-region: drag` on Electron
+            intercepts HTML5 drag-drop events and the tab-bar drop target
+            becomes effectively limited to the tab buttons themselves. */}
         <div
-          className="tab-strip-drop-zone flex min-w-0 flex-shrink items-end gap-0.5 overflow-x-auto px-2 pt-1 scrollbar-none no-drag"
+          className="tab-strip-drop-zone flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto px-2 pt-1 scrollbar-none no-drag"
           style={{ position: 'relative', zIndex: 1 }}
           onMouseDown={handleTopBarBlankMouseDown}
           onDoubleClick={handleTopBarBlankDoubleClick}
-          onDragOver={handleTabRowDragOver}
-          onDrop={handleTabRowDrop}
         >
           {sessions.map((session, index) => (
             <SessionTab
@@ -488,15 +501,6 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
             <Plus size={14} />
           </button>
         </div>
-
-        {/* Blank filler — actual window drag region (no overflow, so drag works). */}
-        <div
-          className={cn('flex-1 self-stretch min-w-[40px]', !isDetached && 'drag-region')}
-          onMouseDown={handleTopBarBlankMouseDown}
-          onDoubleClick={handleTopBarBlankDoubleClick}
-          onDragOver={handleTabRowDragOver}
-          onDrop={handleTabRowDrop}
-        />
 
         <div className="no-drag flex shrink-0 items-center self-stretch border-l border-[var(--color-border)] px-1">
           <button
@@ -558,7 +562,8 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
 
         {showNewMenu && (
           <NewSessionMenu
-            projectId="default"
+            projectId={paneProjectId}
+            worktreeId={paneWorktreeId}
             paneId={paneId}
             onClose={closeNewMenu}
             onMouseEnter={clearHoverCloseTimer}

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useSessionsStore } from '@/stores/sessions'
 import { usePanesStore } from '@/stores/panes'
+import { useUIStore } from '@/stores/ui'
 import { SplitContainer } from '@/components/split/SplitContainer'
 import { AgentOrchestratorPanel } from '@/components/rightpanel/AgentOrchestratorPanel'
 
@@ -8,6 +9,7 @@ export function MainPanel(): JSX.Element {
   const sessions = useSessionsStore((s) => s.sessions)
   const activeTabId = usePanesStore((s) => s.paneActiveSession[s.activePaneId] ?? null)
   const fullscreenPaneId = usePanesStore((s) => s.fullscreenPaneId)
+  const windowFullscreen = useUIStore((s) => s.windowFullscreen)
 
   const activeSession = sessions.find((s) => s.id === activeTabId)
   useEffect(() => {
@@ -19,7 +21,7 @@ export function MainPanel(): JSX.Element {
       <div className="min-w-0 flex-1">
         <SplitContainer />
       </div>
-      {!fullscreenPaneId && <AgentOrchestratorPanel />}
+      {!fullscreenPaneId && !windowFullscreen && <AgentOrchestratorPanel />}
     </div>
   )
 }

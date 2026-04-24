@@ -13,7 +13,7 @@ const CONTEXT_MENU_ITEM =
   'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-[var(--ui-font-sm)] text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text-primary)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--color-text-secondary)]'
 
 export function TerminalView({ session, isActive }: TerminalViewProps): JSX.Element {
-  const { containerRef, searchAddonRef, terminalRef } = useXterm(session, isActive)
+  const { containerRef, searchAddonRef, terminalRef, pasteFromClipboardRef } = useXterm(session, isActive)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchText, setSearchText] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -101,18 +101,8 @@ export function TerminalView({ session, isActive }: TerminalViewProps): JSX.Elem
 
   const doPaste = useCallback(async () => {
     setContextMenu(null)
-    const term = terminalRef.current
-    if (!term) return
-    try {
-      const text = await navigator.clipboard.readText()
-      if (text) {
-        term.focus()
-        term.paste(text)
-      }
-    } catch {
-      // clipboard unavailable — ignore
-    }
-  }, [terminalRef])
+    await pasteFromClipboardRef.current?.()
+  }, [pasteFromClipboardRef])
 
   const doSelectAll = useCallback(() => {
     setContextMenu(null)
