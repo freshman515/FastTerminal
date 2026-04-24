@@ -596,13 +596,14 @@ export function useXterm(
         return false
       }
 
-      // Ctrl/Cmd+V: smart paste for Claude Code / Codex — image → Alt+V, text → inject.
-      // Terminal sessions fall through to xterm's default paste path.
-      const isSmartPasteTarget =
-        sessionType === 'codex' || sessionType === 'codex-yolo'
-        || sessionType === 'claude-code' || sessionType === 'claude-code-yolo'
-      if (isSmartPasteTarget
-        && (e.ctrlKey || e.metaKey)
+      // Ctrl/Cmd+V: clipboard paste for all session types. xterm.js does NOT
+      // have a built-in Ctrl+V handler — it turns Ctrl+V into the raw \x16
+      // control byte, which in bash is "quoted insert", not paste. Route every
+      // session type through pasteFromClipboard() so the terminal / opencode
+      // branches get real text paste, and the agent branches keep their smart
+      // image → Alt+V + text-inject logic. Shift+Insert / context-menu Paste
+      // go through the same function to stay in sync.
+      if ((e.ctrlKey || e.metaKey)
         && !e.altKey
         && e.key.toLowerCase() === 'v') {
         e.preventDefault()
@@ -687,7 +688,11 @@ export function useXterm(
     }
   }, [cwdReady]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fit, force a full re-layout, and focus when becoming active.
+  // Re-fit and focus when becoming active. Intentionally does NOT nudge cols
+  // by ±1: on tab / pane switches the container size is unchanged, so forcing
+  // an extra SIGWINCH only causes agent TUIs (notably Claude Code) to redraw
+  // the whole screen at cols-1 then cols, which reads as a visible jitter.
+  // The cold-start nudge lives in the mount-time syncSize path and is enough.
   useEffect(() => {
     if (!isActive) return
     const term = terminalRef.current
@@ -696,13 +701,7 @@ export function useXterm(
       try {
         fit?.fit()
         if (!term) return
-        const cols = term.cols
-        const rows = term.rows
-        if (cols > 1 && rows > 1) {
-          term.resize(cols - 1, rows)
-          term.resize(cols, rows)
-        }
-        term.refresh(0, rows - 1)
+        term.refresh(0, term.rows - 1)
       } catch { /* ignore */ }
     }
     const timers = [0, 50, 200].map((delay) => setTimeout(nudge, delay))
