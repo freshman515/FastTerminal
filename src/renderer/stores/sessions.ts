@@ -51,7 +51,7 @@ interface SessionsState {
   _loadFromConfig: (raw: unknown[]) => void
   upsertSessions: (sessions: Session[]) => void
 
-  addSession: (projectId: string, type: SessionType, worktreeId?: string) => string
+  addSession: (projectId: string, type: SessionType, worktreeId?: string, cwd?: string) => string
   addSessionFromTemplate: (projectId: string, item: { type: SessionType; name: string; prompt?: string }, worktreeId?: string) => string
   removeSession: (id: string) => void
   dropSessionState: (id: string) => void
@@ -101,16 +101,35 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       }
     }),
 
-  addSession: (projectId, type, worktreeId) => {
+  addSession: (projectId, type, worktreeId, cwd) => {
     const id = generateId()
     const config = SESSION_TYPE_CONFIG[type]
-    const existing = get().sessions.filter((s) => s.projectId === projectId && s.type === type)
+    const state = get()
+    const existing = state.sessions.filter((s) => s.projectId === projectId && s.type === type)
     let maxNum = 0
     for (const s of existing) {
       const match = s.name.match(new RegExp(`^${config.label}\\s+(\\d+)$`))
       if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10))
     }
     const name = `${config.label} ${maxNum + 1}`
+
+    // cwd resolution: caller-supplied wins; else inherit from the globally
+    // active session; else fall back to the most recently updated session
+    // with a known cwd. This is critical for agent sessions (Claude Code /
+    // Codex) — their TUIs don't emit OSC 7 so whatever cwd we pass at PTY
+    // spawn time is what the agent sees for its entire lifetime.
+    let resolvedCwd = cwd && cwd.length > 0 ? cwd : undefined
+    if (!resolvedCwd) {
+      const activeSession = state.sessions.find((s) => s.id === state.activeSessionId)
+      if (activeSession?.cwd) {
+        resolvedCwd = activeSession.cwd
+      } else {
+        const fallback = [...state.sessions]
+          .filter((s) => Boolean(s.cwd))
+          .sort((a, b) => b.updatedAt - a.updatedAt)[0]
+        resolvedCwd = fallback?.cwd
+      }
+    }
 
     const session: Session = {
       id,
@@ -125,10 +144,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       createdAt: Date.now(),
       updatedAt: Date.now(),
       worktreeId,
+      cwd: resolvedCwd,
     }
 
-    set((state) => {
-      const sessions = [...state.sessions, session]
+    set((current) => {
+      const sessions = [...current.sessions, session]
       persist(sessions)
       return { sessions, activeSessionId: id }
     })

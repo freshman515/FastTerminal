@@ -179,7 +179,7 @@ export function PaneView({ paneId }: PaneViewProps): JSX.Element {
     hoverOpenTimerRef.current = setTimeout(() => {
       hoverOpenTimerRef.current = null
       openNewMenu()
-    }, 500)
+    }, 120)
   }, [clearHoverCloseTimer, clearHoverOpenTimer, openNewMenu])
 
   const handleEmptyStateIconClick = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {

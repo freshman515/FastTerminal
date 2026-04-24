@@ -53,17 +53,6 @@ export function NewSessionMenu({
   const visibleMenuItems = useUIStore((s) => s.settings.newSessionMenuItems)
   const addToast = useUIStore((s) => s.addToast)
 
-  const handleSelect = useCallback(
-    (type: SessionType) => {
-      const targetWorktreeId = worktreeId ?? getDefaultWorktreeIdForProject(projectId)
-      const id = addSession(projectId, type, targetWorktreeId)
-      const targetPane = paneId ?? usePanesStore.getState().activePaneId
-      addSessionToPane(targetPane, id)
-      onClose()
-    },
-    [projectId, worktreeId, paneId, addSession, addSessionToPane, onClose],
-  )
-
   const resolveTargetCwd = useCallback(async (): Promise<string> => {
     const paneStore = usePanesStore.getState()
     const sessionStore = useSessionsStore.getState()
@@ -77,6 +66,22 @@ export function NewSessionMenu({
 
     return window.api.config.getAnonymousWorkspace()
   }, [paneId])
+
+  const handleSelect = useCallback(
+    async (type: SessionType) => {
+      const targetWorktreeId = worktreeId ?? getDefaultWorktreeIdForProject(projectId)
+      // Agent TUIs (Claude Code / Codex) don't emit OSC 7, so whatever cwd
+      // we pass at spawn is what they see forever. Inherit the target pane's
+      // active session cwd so opening an agent "here" matches what the user
+      // is looking at, instead of falling back to $HOME in PtyManager.
+      const cwd = await resolveTargetCwd()
+      const id = addSession(projectId, type, targetWorktreeId, cwd)
+      const targetPane = paneId ?? usePanesStore.getState().activePaneId
+      addSessionToPane(targetPane, id)
+      onClose()
+    },
+    [projectId, worktreeId, paneId, addSession, addSessionToPane, onClose, resolveTargetCwd],
+  )
 
   const handleAdminTerminal = useCallback(async () => {
     onClose()
@@ -121,7 +126,7 @@ export function NewSessionMenu({
       return (
         <button
           key={id}
-          onClick={() => handleSelect('terminal')}
+          onClick={() => void handleSelect('terminal')}
           className={cn(
             'flex w-full items-center gap-2.5 px-3 py-2',
             'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)]',
@@ -156,7 +161,7 @@ export function NewSessionMenu({
     return (
       <button
         key={id}
-        onClick={() => handleSelect(opt.type)}
+        onClick={() => void handleSelect(opt.type)}
         className={cn(
           'flex w-full items-center gap-2.5 px-3 py-2',
           'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)]',
